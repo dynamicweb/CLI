@@ -2,13 +2,13 @@
 
 import yargs from 'yargs/yargs';
 import { hideBin } from 'yargs/helpers';
-import { loginCommand } from './login.js';
-import { envCommand } from './env.js';
-import { configCommand, setupConfig, getConfig } from './config.js';
-import { installCommand } from './install.js';
-import { filesCommand } from './files.js';
-import { swiftCommand } from './swift.js';
-import { databaseCommand } from './database.js';
+import { loginCommand } from './commands/login.js';
+import { envCommand } from './commands/env.js';
+import { configCommand, setupConfig, getConfig } from './commands/config.js';
+import { installCommand } from './commands/install.js';
+import { filesCommand } from './commands/files.js';
+import { swiftCommand } from './commands/swift.js';
+import { databaseCommand } from './commands/database.js';
 
 setupConfig();
 

@@ -4,7 +4,6 @@ import _path from 'path';
 import { Agent } from 'https';
 import { setupEnv } from './env.js';
 import { setupUser } from './login.js';
-import { argv } from 'process';
 
 const agent = new Agent({
     rejectUnauthorized: false

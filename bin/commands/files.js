@@ -4,7 +4,7 @@ import fs from 'fs';
 import { Agent } from 'https';
 import { setupEnv } from './env.js';
 import { setupUser } from './login.js';
-import { interactiveConfirm } from './utils.js';
+import { interactiveConfirm } from '../utils.js';
 
 const agent = new Agent({
     rejectUnauthorized: false
