@@ -7,6 +7,7 @@ import { envCommand } from './env.js';
 import { configCommand, setupConfig, getConfig } from './config.js';
 import { installCommand } from './install.js';
 import { filesCommand } from './files.js';
+import { swiftCommand } from './swift.js';
 
 setupConfig();
 
@@ -18,6 +19,7 @@ yargs(hideBin(process.argv))
     .command(installCommand())
     .command(configCommand())
     .command(filesCommand())
+    .command(swiftCommand())
     .option('verbose', {
         alias: 'v',
         type: 'boolean',

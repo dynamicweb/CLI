@@ -21,7 +21,7 @@ export function installCommand() {
             })
         },
         handler: (argv) => {
-            if (argv.verbose) console.info(`installing file located at :${argv.filePath}`)
+            if (argv.verbose) console.info(`Installing file located at :${argv.filePath}`)
             handleInstall(argv)
         }
     }
