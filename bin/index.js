@@ -8,6 +8,7 @@ import { configCommand, setupConfig, getConfig } from './config.js';
 import { installCommand } from './install.js';
 import { filesCommand } from './files.js';
 import { swiftCommand } from './swift.js';
+import { databaseCommand } from './database.js';
 
 setupConfig();
 
@@ -20,6 +21,7 @@ yargs(hideBin(process.argv))
     .command(configCommand())
     .command(filesCommand())
     .command(swiftCommand())
+    .command(databaseCommand())
     .option('verbose', {
         alias: 'v',
         type: 'boolean',
