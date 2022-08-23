@@ -1,6 +1,7 @@
 import fetch from 'node-fetch';
 import path from 'path';
 import fs from 'fs';
+import extract from 'extract-zip';
 import { Agent } from 'https';
 import { setupEnv } from './env.js';
 import { setupUser } from './login.js';
@@ -43,6 +44,10 @@ export function filesCommand() {
                 type: 'boolean',
                 describe: 'Handles all directories recursively'
             })
+            .option('raw', {
+                type: 'boolean',
+                describe: 'Keeps zip file instead of unpacking it'
+            })
             .option('iamstupid', {
                 type: 'boolean',
                 describe: 'Includes export of log and cache folders, NOT RECOMMENDED'
@@ -78,7 +83,7 @@ async function handleFiles(argv) {
                     const dir = dirs[id];
                     await download(env, user, dir.name, argv.outPath, true, null, argv.iamstupid);
                 }
-                await download(env, user, '', argv.outPath, false, 'Base.zip');
+                await download(env, user, '', argv.outPath, false, 'Base.zip', argv.iamstupid);
                 console.log('The files in the base "files" folder is in Base.zip, each directory in "files" is in its own zip')
             })
         }
@@ -150,7 +155,7 @@ async function download(env, user, dirPath, outPath, recursive, outname, iamstup
             console.log(`No files found in directory '${dirPath}', if you want to download all folders recursively include the -r flag`);
             return;
         }
-        filename = parts[1].split('=')[1];
+        filename = parts[1].split('=')[1].replace('+', ' ');
         if (outname) filename = outname;
         return res;
     }).then(async (res) => {
@@ -162,6 +167,9 @@ async function download(env, user, dirPath, outPath, recursive, outname, iamstup
             fileStream.on("finish", resolve);
         });
         console.log(`Finished downloading`, dirPath === '' ? '.' : dirPath, 'Recursive=' + recursive);
+        let filenameWithoutExtension = filename.replace('.zip', '')
+        await extract(filename, { dir: `${path.resolve(outPath)}/${filenameWithoutExtension === 'Base' ? '' : filenameWithoutExtension}` }, function (err) {})
+        fs.unlink(filename, function(err) {})
         return res;
     });
 }
