@@ -109,9 +109,3 @@ async function changeEnv(argv) {
         console.log(`Your current environment is now ${getConfig().current.env}`);
     }
 }
-
-async function changeUser(argv) {
-    getConfig().env[getConfig().current.env].current.user = argv.user;
-    updateConfig();
-    console.log(`You're now logged in as ${getConfig().env[getConfig().current.env].current.user}`);
-}

@@ -181,3 +181,9 @@ async function getApiKey(token, env) {
         console.log(res)
     }
 }
+
+async function changeUser(argv) {
+    getConfig().env[getConfig().current.env].current.user = argv.user;
+    updateConfig();
+    console.log(`You're now logged in as ${getConfig().env[getConfig().current.env].current.user}`);
+}
