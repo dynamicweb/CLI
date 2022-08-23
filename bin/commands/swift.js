@@ -13,6 +13,7 @@ export function swiftCommand() {
         builder: (yargs) => {
             return yargs
             .positional('outPath', {
+                default: '.',
                 describe: 'Location for the swift solution'
             })
             .option('tag', {
@@ -23,8 +24,9 @@ export function swiftCommand() {
                 alias: 'l',
                 describe: 'Lists all release versions'
             })
-            .option('latest', {
-                describe: 'Only covers latest and overrides tag with latest'
+            .option('nightly', {
+                alias: 'n',
+                describe: 'Will pull #HEAD, as default is latest release'
             })
             .option('force', {})
         },
@@ -37,13 +39,13 @@ export function swiftCommand() {
 
 async function handleSwift(argv) {
     if (argv.list) {
-        console.log(await getVersions(argv.latest))
+        console.log(await getVersions(false))
     } else {
         let degitCommand
-        if (argv.latest) {
-            degitCommand = `npx degit dynamicweb/swift#${await getVersions(argv.latest)} ${argv.force ? '--force' : ''} ${argv.outPath}`
+        if (argv.nightly) {
+            degitCommand = `npx degit dynamicweb/swift ${argv.force ? '--force' : ''} ${argv.outPath}`
         } else {
-            degitCommand = `npx degit dynamicweb/swift${argv.tag ? '#' + argv.tag : ''} ${argv.force ? '--force' : ''} ${argv.outPath}`
+            degitCommand = `npx degit dynamicweb/swift#${argv.tag ? argv.tag : await getVersions(true)} ${argv.force ? '--force' : ''} ${argv.outPath}`
         }
         if (argv.verbose) console.info(`Executing command: ${degitCommand}`)
         exec(`${degitCommand}`, (error, stdout, stderr) => {
