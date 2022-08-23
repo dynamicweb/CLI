@@ -9,6 +9,8 @@ import { installCommand } from './commands/install.js';
 import { filesCommand } from './commands/files.js';
 import { swiftCommand } from './commands/swift.js';
 import { databaseCommand } from './commands/database.js';
+import { queryCommand } from './commands/query.js';
+import { commandCommand } from './commands/command.js';
 
 setupConfig();
 
@@ -22,6 +24,8 @@ yargs(hideBin(process.argv))
     .command(filesCommand())
     .command(swiftCommand())
     .command(databaseCommand())
+    .command(queryCommand())
+    .command(commandCommand())
     .option('verbose', {
         alias: 'v',
         type: 'boolean',

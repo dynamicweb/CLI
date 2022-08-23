@@ -26,26 +26,26 @@ export function filesCommand() {
             .option('list', {
                 alias: 'l',
                 type: 'boolean',
-                description: 'Lists all directories and files'
+                describe: 'Lists all directories and files'
             })
             .option('export', {
                 alias: 'e',
                 type: 'boolean',
-                description: 'Exports the directory at [dirPath] to [outPath]'
+                describe: 'Exports the directory at [dirPath] to [outPath]'
             })
             .option('includeFiles', {
                 alias: 'f',
                 type: 'boolean',
-                description: 'Includes files in list of directories and files'
+                describe: 'Includes files in list of directories and files'
             })
             .option('recursive', {
                 alias: 'r',
                 type: 'boolean',
-                description: 'Handles all directories recursively'
+                describe: 'Handles all directories recursively'
             })
             .option('iamstupid', {
                 type: 'boolean',
-                description: 'Includes export of log and cache folders, NOT RECOMMENDED'
+                describe: 'Includes export of log and cache folders, NOT RECOMMENDED'
             })
         },
         handler: (argv) => {
