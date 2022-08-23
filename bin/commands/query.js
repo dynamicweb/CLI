@@ -2,12 +2,13 @@ import { Agent } from 'https';
 import fetch from 'node-fetch';
 import { setupEnv } from './env.js';
 import { setupUser } from './login.js';
+import yargsInteractive from 'yargs-interactive';
 
 const agent = new Agent({
     rejectUnauthorized: false
 })
 
-const exclude = ['_', '$0', 'query', 'list']
+const exclude = ['_', '$0', 'query', 'list', 'i', 'l', 'interactive']
 
 export function queryCommand() {
     return {
@@ -22,6 +23,10 @@ export function queryCommand() {
                 alias: 'l',
                 describe: 'Lists all the properties for the query'
             })
+            .option('interactive', {
+                alias: 'i',
+                describe: 'Runs in interactive mode to ask for query parameters one by one'
+            })
         },
         handler: (argv) => {
             if (argv.verbose) console.info(`Running query ${argv.query}`)
@@ -34,15 +39,18 @@ async function handleQuery(argv) {
     let env = await setupEnv(argv);
     let user = await setupUser(argv, env);
     if (argv.list) {
-        console.log(await getProperties(env, user, argv.query))
+        console.log(await getProperties(argv))
     } else {
-        let response = await runQuery(env, user, argv.query, getQueryParams(argv))
+        let response = await runQuery(env, user, argv.query, await getQueryParams(argv))
         console.log(response)
     }
 }
 
-async function getProperties(env, user, query) {
-    let res = await fetch(`https://${env.host}/Admin/Api/QueryByName?name=${query}`, {
+async function getProperties(argv) {
+    let env = await setupEnv(argv);
+    let user = await setupUser(argv, env);
+
+    let res = await fetch(`https://${env.host}/Admin/Api/QueryByName?name=${argv.query}`, {
         method: 'GET',
         headers: {
             'Authorization': `Bearer ${user.apiKey}`
@@ -53,11 +61,24 @@ async function getProperties(env, user, query) {
         let body = await res.json()
         return body.model.propertyNames
     }
+    console.log(res)
 }
 
-function getQueryParams(argv) {
+async function getQueryParams(argv) {
     let params = {}
-    Object.keys(argv).filter(k => !exclude.includes(k)).forEach(k => params[k] = argv[k])
+    if (argv.interactive) {
+        let props = { interactive: { default: true }}
+        Array.from(await getProperties(argv)).forEach(p => props[p] = { type: 'input', prompt: 'if-no-arg'})
+        await yargsInteractive()
+        .interactive(props)
+        .then((result) => {
+            Object.keys(result).filter(k => !exclude.includes(k)).forEach(k => {
+                if (result[k]) params[k] = result[k]
+            })
+        });
+    } else {
+        Object.keys(argv).filter(k => !exclude.includes(k)).forEach(k => params[k] = argv[k])
+    }
     return params
 }
 
