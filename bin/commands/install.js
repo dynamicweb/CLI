@@ -60,7 +60,7 @@ async function uploadFile(env, user, resolvedPath) {
 async function installAddin(env, user, resolvedPath) {
     console.log('Installing addin')
     let data = new URLSearchParams();
-    data.append('AddinProvider', 'Dynamicweb.Marketplace.NuGet.LocalAddinProvider');
+    data.append('AddinProvider', 'Dynamicweb.Marketplace.Providers.LocalAddinProvider');
     data.append('Package', path.basename(resolvedPath));
     let res = await fetch(`https://${env.host}/Admin/Api/AddinInstall`, {
         method: 'POST',
