@@ -160,7 +160,8 @@ async function download(env, user, dirPath, outPath, recursive, outname, iamstup
         return res;
     }).then(async (res) => {
         if (!filename) return;
-        const fileStream = fs.createWriteStream(path.resolve(`${path.resolve(outPath)}/${filename}`));
+        let filePath = path.resolve(`${path.resolve(outPath)}/${filename}`)
+        const fileStream = fs.createWriteStream(filePath);
         await new Promise((resolve, reject) => {
             res.body.pipe(fileStream);
             res.body.on("error", reject);
@@ -168,8 +169,8 @@ async function download(env, user, dirPath, outPath, recursive, outname, iamstup
         });
         console.log(`Finished downloading`, dirPath === '' ? '.' : dirPath, 'Recursive=' + recursive);
         let filenameWithoutExtension = filename.replace('.zip', '')
-        await extract(filename, { dir: `${path.resolve(outPath)}/${filenameWithoutExtension === 'Base' ? '' : filenameWithoutExtension}` }, function (err) {})
-        fs.unlink(filename, function(err) {})
+        await extract(filePath, { dir: `${path.resolve(outPath)}/${filenameWithoutExtension === 'Base' ? '' : filenameWithoutExtension}` }, function (err) {})
+        fs.unlink(filePath, function(err) {})
         return res;
     });
 }
