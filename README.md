@@ -54,12 +54,12 @@ The configuration will automatically be created when setting up your first envir
 > $ dw files \<dirPath\> \<outPath\>
 
 The files command is used to list out and export the structure in your Dynamicweb files archive, as such is has multiple options;
-- -l --list         This will list the directory given in \<dirPath\>
-- -f --includeFiles The list will now also show all files in the directories
-- -r --recursive    By default it only handles the \<dirPath\>, but with this option it will handle all directories under this recursively
-- -e --export       It will export \<dirPath\> into \<outPath\> on your local machine, unzipped by default
-- --raw             This will keep the content zipped
-- --iamstupid       This will include the export of the /files/system/log and /files/.cache folders
+- `-l` `--list`         This will list the directory given in \<dirPath\>
+- `-f` `--includeFiles` The list will now also show all files in the directories
+- `-r` `--recursive`    By default it only handles the \<dirPath\>, but with this option it will handle all directories under this recursively
+- `-e` `--export`       It will export \<dirPath\> into \<outPath\> on your local machine, unzipped by default
+- `--raw`             This will keep the content zipped
+- `--iamstupid`       This will include the export of the /files/system/log and /files/.cache folders
 
 #### Examples
 Exporting all templates from current environment to local solution
@@ -74,10 +74,10 @@ Listing the system files structure of the current environment
 > $ dw swift \<outPath\>
 
 The swift command is used to easily get your local environment up to date with the latest swift release. It will override all existing directories and content in those, which can then be adjusted in your source control afterwards. It has multiple options to specify which tag or branch to pull;
-- -t --tag \<tag\>  The tag/branch/release to pull
-- -l --list         Will list all the release versions
-- -n --nightly      Will pull #HEAD, as default is latest release
-- --force           Used if \<outPath\> is not an empty folder, to override all the content
+- `-t` `--tag <tag>`  The tag/branch/release to pull
+- `-l` `--list`         Will list all the release versions
+- `-n` `--nightly`      Will pull #HEAD, as default is latest release
+- `--force`           Used if \<outPath\> is not an empty folder, to override all the content
 
 #### Examples
 Getting all the available releases
@@ -92,9 +92,9 @@ Pulling and overriding local solution with latest nightly build
 > $ dw query \<query\>
 
 The query command will fire any query towards the admin Api with the given query parameters. This means any query parameter that's necessary for the given query, is required as an option in this command. It's also possible to list which parameters is necessary for the given query through the options;
-- -l --list         Will list all the properties for the given \<query\>
-- -i --interactive  Will perform the \<query\> but without any parameters, as they will be asked for one by one in interactive mode
-- --\<queryParam\>  Any parameter the query needs will be sent by '--key value'
+- `-l` `--list`         Will list all the properties for the given \<query\>
+- `-i` `--interactive`  Will perform the \<query\> but without any parameters, as they will be asked for one by one in interactive mode
+- `--<queryParam>`  Any parameter the query needs will be sent by '--key value'
 
 #### Examples
 Getting all properties for a query
@@ -107,8 +107,8 @@ Getting file information on a specific file by name
 > $ dw command \<command\>
 
 Using command will, like query, fire any given command in the solution. It works like query, given the query parameters necessary, however if a `DataModel` is required for the command, it is given in a json-format, either through a path to a .json file or a literal json-string in the command.
-- -l --list Lists all the properties for the command, as well as the json model required **currently not working**
-- --json Takes a path to a .json file or a literal json, i.e --json '{ abc: "123" }'
+- `-l` `--list` Lists all the properties for the command, as well as the json model required **currently not working**
+- `--json` Takes a path to a .json file or a literal json, i.e --json '{ abc: "123" }'
 
 #### Examples
 Creating a copy of a page using a json-string
@@ -139,7 +139,7 @@ It's meant to be used to easily apply custom dlls to a given project, it being l
 > $ dw database \<outPath\>
 
 This command is used for various actions towards your current environments database.
-- -e --export       Exports your current environments database to a .bacpac file at \<outPath\>
+- `-e` `--export`       Exports your current environments database to a .bacpac file at \<outPath\>
 
 #### Examples
 > $ dw database -e ./backup
