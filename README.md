@@ -148,7 +148,7 @@ This command is used for various actions towards your current environments datab
 > $ dw config
 
 Config is used to manage the .dwc file through the CLI, given any prop it will create the key/value with the path to it.
-- --\<property\>  The path and name of the property to set
+- `--<property>`  The path and name of the property to set
 
 #### Examples
 Changing the host for the dev environment
