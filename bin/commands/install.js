@@ -5,6 +5,7 @@ import FormData from 'form-data';
 import { Agent } from 'https';
 import { setupEnv } from './env.js';
 import { setupUser } from './login.js';
+import { uploadFile } from './files.js';
 
 const agent = new Agent({
     rejectUnauthorized: false
@@ -31,30 +32,8 @@ async function handleInstall(argv) {
     let env = await setupEnv(argv);
     let user = await setupUser(argv, env);
     let resolvedPath = path.resolve(argv.filePath)
-    await uploadFile(env, user, resolvedPath);
+    await uploadFile(env, user, resolvedPath, 'System/AddIns/Local');
     await installAddin(env, user, resolvedPath)
-}
-
-async function uploadFile(env, user, resolvedPath) {
-    console.log('Uploading file')
-    let files = new FormData();
-    files.append('files', fs.createReadStream(resolvedPath));
-    let res = await fetch(`https://${env.host}/Admin/Api/FileUpload?Command.Path=System/AddIns/Local`, {
-        method: 'POST',
-        body: files,
-        headers: {
-            'Authorization': `Bearer ${user.apiKey}`
-        },
-        agent: agent
-    });
-    if (res.ok) {
-        if (env.verbose) console.log(await res.json())
-        console.log(`File uploaded`)
-    }
-    else {
-        console.log(res)
-        return;
-    }
 }
 
 async function installAddin(env, user, resolvedPath) {
