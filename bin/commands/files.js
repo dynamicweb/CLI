@@ -2,6 +2,7 @@ import fetch from 'node-fetch';
 import path from 'path';
 import fs from 'fs';
 import extract from 'extract-zip';
+import FormData from 'form-data';
 import { Agent } from 'https';
 import { setupEnv } from './env.js';
 import { setupUser } from './login.js';
@@ -33,6 +34,11 @@ export function filesCommand() {
                 alias: 'e',
                 type: 'boolean',
                 describe: 'Exports the directory at [dirPath] to [outPath]'
+            })
+            .option('import', {
+                alias: 'i',
+                type: 'boolean',
+                describe: 'Imports the file at [dirPath] to [outPath]'
             })
             .option('includeFiles', {
                 alias: 'f',
@@ -86,6 +92,10 @@ async function handleFiles(argv) {
                 await download(env, user, '', argv.outPath, false, 'Base.zip', argv.iamstupid);
                 console.log('The files in the base "files" folder is in Base.zip, each directory in "files" is in its own zip')
             })
+        }
+    } else if (argv.import) {
+        if (argv.dirPath && argv.outPath) {
+            await uploadFile(env, user, argv.dirPath, argv.outPath);
         }
     }
 }
@@ -187,5 +197,27 @@ async function getFilesStructure(env, user, dirPath, recursive, includeFiles) {
         return await res.json();
     } else {
         console.log(res);
+    }
+}
+
+export async function uploadFile(env, user, localFilePath, destinationPath) {
+    console.log('Uploading file')
+    let files = new FormData();
+    files.append('files', fs.createReadStream(localFilePath));
+    let res = await fetch(`https://${env.host}/Admin/Api/FileUpload?Command.Path=${destinationPath}`, {
+        method: 'POST',
+        body: files,
+        headers: {
+            'Authorization': `Bearer ${user.apiKey}`
+        },
+        agent: agent
+    });
+    if (res.ok) {
+        if (env.verbose) console.log(await res.json())
+        console.log(`File uploaded`)
+    }
+    else {
+        console.log(res)
+        return;
     }
 }
