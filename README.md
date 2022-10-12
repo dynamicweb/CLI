@@ -3,6 +3,12 @@
 ## Get started
 To install after cloning, move to project dir and run
 > $ npm install -g .
+> 
+> $ npm install
+
+Note that specific installations might be necessary if you're faced with errors such as 'Error [ERR_MODULE_NOT_FOUND]: Cannot find package 'yargs''
+In which case try installing that module specifically;
+> $ npm install yargs
 
 ## Commands
 All commands and options can be viewed by running
