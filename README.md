@@ -112,14 +112,14 @@ Using command will, like query, fire any given command in the solution. It works
 
 #### Examples
 Creating a copy of a page using a json-string
-> $ dw command PageCopy --json '{ "SourcePageId": 1189, "DestinationParentPageId": 1129 }'
+> $ dw command PageCopy --json '{ "model": { "SourcePageId": 1189, "DestinationParentPageId": 1129 } }'
 
 Removing a page using a json file
 > $ dw command PageMove --json ./PageMove.json
 
 Where PageMove.json contains
 ```json
-{ "SourcePageId": 1383, "DestinationParentPageId": 1376 }
+{ "model": { "SourcePageId": 1383, "DestinationParentPageId": 1376 } }
 ```
 
 Deleting a page
