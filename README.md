@@ -123,7 +123,7 @@ Where PageMove.json contains
 ```
 
 Deleting a page
-> $ dw command PageDelete --id 1383
+> $ dw command PageDelete --json '{ "id": "1383" }'
 
 ### Install
 > $ dw install \<filePath\>
