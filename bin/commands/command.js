@@ -41,7 +41,7 @@ async function handleCommand(argv) {
     if (argv.list) {
         console.log(await getProperties(env, user, argv.command))
     } else {
-        let response = await runCommand(env, user, argv.command, getQueryParams(argv), getFormParams(argv.json))
+        let response = await runCommand(env, user, argv.command, getQueryParams(argv), parseJsonOrPath(argv.json))
         console.log(response)
     }
 }
@@ -67,7 +67,7 @@ function getQueryParams(argv) {
     return params
 }
 
-function getFormParams(json) {
+function parseJsonOrPath(json) {
     if (!json) return
     if (fs.existsSync(json)) {
         return JSON.parse(fs.readFileSync(path.resolve(json)))
@@ -76,13 +76,13 @@ function getFormParams(json) {
     }
 }
 
-async function runCommand(env, user, command, queryParams, formParams) {
+async function runCommand(env, user, command, queryParams, data) {
     let res = await fetch(`https://${env.host}/Admin/Api/${command}?` + new URLSearchParams(queryParams), {
         method: 'POST',
-        body: new URLSearchParams(formParams),
+        body: JSON.stringify( { 'model': data } ),
         headers: {
             'Authorization': `Bearer ${user.apiKey}`,
-            'Content-Type': 'application/x-www-form-urlencoded'
+            'Content-Type': 'application/json'
         },
         agent: agent
     })
