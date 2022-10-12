@@ -160,15 +160,16 @@ async function getToken(user, env) {
 }
 
 async function getApiKey(token, env) {
-    let data = new URLSearchParams();
-    data.append('Name', 'addin');
-    data.append('Prefix', 'addin');
-    data.append('Description', 'Auto-generated ApiKey by DW CLI');
+    let data = {
+        'Name': 'addin',
+        'Prefix': 'addin',
+        'Description': 'Auto-generated ApiKey by DW CLI'
+    };
     var res = await fetch(`https://${getConfig().env[env].host}/Admin/Api/ApiKeySave`, {
         method: 'POST',
-        body: data,
+        body: JSON.stringify( { 'model': data } ),
         headers: {
-            'Content-Type': 'application/x-www-form-urlencoded',
+            'Content-Type': 'application/json',
             'Authorization': `Bearer ${token}`
         },
         agent: agent
@@ -178,7 +179,7 @@ async function getApiKey(token, env) {
         return (await res.json()).message
     }
     else {
-        console.log(res)
+        console.log(await res.json())
     }
 }
 

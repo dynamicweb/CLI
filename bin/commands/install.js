@@ -1,7 +1,5 @@
 import fetch from 'node-fetch';
 import path from 'path';
-import fs from 'fs';
-import FormData from 'form-data';
 import { Agent } from 'https';
 import { setupEnv } from './env.js';
 import { setupUser } from './login.js';
@@ -38,14 +36,15 @@ async function handleInstall(argv) {
 
 async function installAddin(env, user, resolvedPath) {
     console.log('Installing addin')
-    let data = new URLSearchParams();
-    data.append('AddinProvider', 'Dynamicweb.Marketplace.Providers.LocalAddinProvider');
-    data.append('Package', path.basename(resolvedPath));
+    let data = {
+        'AddinProvider': 'Dynamicweb.Marketplace.Providers.LocalAddinProvider',
+        'Package': path.basename(resolvedPath)
+    }
     let res = await fetch(`https://${env.host}/Admin/Api/AddinInstall`, {
         method: 'POST',
-        body: data,
+        body: JSON.stringify( { 'model': data } ),
         headers: {
-            'Content-Type': 'application/x-www-form-urlencoded',
+            'Content-Type': 'application/json',
             'Authorization': `Bearer ${user.apiKey}`
         },
         agent: agent
