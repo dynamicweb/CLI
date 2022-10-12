@@ -71,7 +71,7 @@ The files command is used to list out and export the structure in your Dynamicwe
 Exporting all templates from current environment to local solution
 > $ cd DynamicWebSolution/Files
 > 
-> $ dw files /templates ./templates
+> $ dw files templates ./templates -fre
 
 Listing the system files structure of the current environment
 > $ dw files system -lr
