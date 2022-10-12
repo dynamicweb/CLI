@@ -79,7 +79,7 @@ function parseJsonOrPath(json) {
 async function runCommand(env, user, command, queryParams, data) {
     let res = await fetch(`https://${env.host}/Admin/Api/${command}?` + new URLSearchParams(queryParams), {
         method: 'POST',
-        body: JSON.stringify( { 'model': data } ),
+        body: JSON.stringify(data),
         headers: {
             'Authorization': `Bearer ${user.apiKey}`,
             'Content-Type': 'application/json'
