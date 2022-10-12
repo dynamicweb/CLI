@@ -41,6 +41,7 @@ function baseCommand() {
         handler: () => {
             console.log(`Environment: ${getConfig()?.current?.env}`)
             console.log(`User: ${getConfig()?.env[getConfig()?.current?.env]?.current?.user}`)
+            console.log(`Host: ${getConfig()?.env[getConfig()?.current?.env]?.host}`)
         }
     }
 }
