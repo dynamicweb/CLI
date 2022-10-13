@@ -1,5 +1,6 @@
 import { exec } from 'child_process';
 import { Agent } from 'https';
+import path from 'path';
 import fetch from 'node-fetch';
 
 const agent = new Agent({
@@ -43,12 +44,12 @@ async function handleSwift(argv) {
     } else {
         let degitCommand
         if (argv.nightly) {
-            degitCommand = `npx degit dynamicweb/swift ${argv.force ? '--force' : ''} ${argv.outPath}`
+            degitCommand = `npx degit dynamicweb/swift ${argv.force ? '--force' : ''} "${path.resolve(argv.outPath)}"`
         } else {
-            degitCommand = `npx degit dynamicweb/swift#${argv.tag ? argv.tag : await getVersions(true)} ${argv.force ? '--force' : ''} ${argv.outPath}`
+            degitCommand = `npx degit dynamicweb/swift#${argv.tag ? argv.tag : await getVersions(true)} ${argv.force ? '--force' : ''} "${path.resolve(argv.outPath)}"`
         }
         if (argv.verbose) console.info(`Executing command: ${degitCommand}`)
-        exec(`${degitCommand}`, (error, stdout, stderr) => {
+        exec(degitCommand, (error, stdout, stderr) => {
             if (error) {
                 console.log(`error: ${error.message}`);
                 return;
