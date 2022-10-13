@@ -143,7 +143,7 @@ async function download(env, user, dirPath, outPath, recursive, outname, iamstup
     }
     let excludeDirectories = '';
     if (!iamstupid) {
-        excludeDirectories = '&Command.ExcludeDirectories=system/log';
+        excludeDirectories = 'system/log';
         if (dirPath === 'cache.net') {
             return;
         }
@@ -152,14 +152,20 @@ async function download(env, user, dirPath, outPath, recursive, outname, iamstup
     console.log('Downloading', dirPath === '' ? 'Base' : dirPath, 'Recursive=' + recursive);
 
     let filename;
-    fetch(`https://${env.host}/Admin/Api/${endpoint}?Command.DirectoryPath=${dirPath ?? ''}${excludeDirectories}`, {
+    let data = {
+        'DirectoryPath': dirPath ?? '',
+        'ExcludeDirectories': [ excludeDirectories ],
+    }
+    fetch(`https://${env.host}/Admin/Api/${endpoint}`, {
         method: 'POST',
+        body: JSON.stringify(data),
         headers: {
-            'Authorization': `Bearer ${user.apiKey}`
+            'Authorization': `Bearer ${user.apiKey}`,
+            'Content-Type': 'application/json'
         },
         agent: agent
     }).then((res) => {
-        const header = res.headers.get('Content-Disposition');
+        const header = res.headers.get('content-disposition');
         const parts = header?.split(';');
         if (!parts) {
             console.log(`No files found in directory '${dirPath}', if you want to download all folders recursively include the -r flag`);
