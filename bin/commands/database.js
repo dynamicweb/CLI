@@ -46,7 +46,8 @@ async function download(env, user, path, verbose) {
     fetch(`https://${env.host}/Admin/Api/DatabaseDownload`, {
         method: 'POST',
         headers: {
-            'Authorization': `Bearer ${user.apiKey}`
+            'Authorization': `Bearer ${user.apiKey}`,
+            'content-type': 'application/json'
         },
         agent: agent
     }).then(async (res) => {
