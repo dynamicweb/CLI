@@ -80,16 +80,16 @@ async function handleFiles(argv) {
 
     if (argv.export) {
         if (argv.dirPath) {
-            await download(env, user, argv.dirPath, argv.outPath, argv.recursive);
+            await download(env, user, argv.dirPath, argv.outPath, argv.recursive, null, argv.raw);
         } else {
             await interactiveConfirm('Are you sure you want a full export of files?', async () => {
                 console.log('Full export is starting')
                 let dirs = (await getFilesStructure(env, user, '', false, false)).model.directories;
                 for (let id = 0; id < dirs.length; id++) {
                     const dir = dirs[id];
-                    await download(env, user, dir.name, argv.outPath, true, null, argv.iamstupid);
+                    await download(env, user, dir.name, argv.outPath, true, null, argv.raw, argv.iamstupid);
                 }
-                await download(env, user, '', argv.outPath, false, 'Base.zip', argv.iamstupid);
+                await download(env, user, '', argv.outPath, false, 'Base.zip', argv.raw, argv.iamstupid);
                 console.log('The files in the base "files" folder is in Base.zip, each directory in "files" is in its own zip')
             })
         }
@@ -134,7 +134,7 @@ function resolveTree(dirs, indentLevel, parentHasFiles) {
     }
 }
 
-async function download(env, user, dirPath, outPath, recursive, outname, iamstupid) {
+async function download(env, user, dirPath, outPath, recursive, outname, raw, iamstupid) {
     let endpoint;
     if (recursive) {
         endpoint = 'DirectoryDownload';
@@ -184,9 +184,11 @@ async function download(env, user, dirPath, outPath, recursive, outname, iamstup
             fileStream.on("finish", resolve);
         });
         console.log(`Finished downloading`, dirPath === '' ? '.' : dirPath, 'Recursive=' + recursive);
-        let filenameWithoutExtension = filename.replace('.zip', '')
-        await extract(filePath, { dir: `${path.resolve(outPath)}/${filenameWithoutExtension === 'Base' ? '' : filenameWithoutExtension}` }, function (err) {})
-        fs.unlink(filePath, function(err) {})
+        if (!raw) {
+            let filenameWithoutExtension = filename.replace('.zip', '')
+            await extract(filePath, { dir: `${path.resolve(outPath)}/${filenameWithoutExtension === 'Base' ? '' : filenameWithoutExtension}` }, function (err) {})
+            fs.unlink(filePath, function(err) {})
+        }
         return res;
     });
 }
