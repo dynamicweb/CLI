@@ -84,7 +84,7 @@ async function handleFiles(argv) {
         } else {
             await interactiveConfirm('Are you sure you want a full export of files?', async () => {
                 console.log('Full export is starting')
-                let dirs = (await getFilesStructure(env, user, '', false, false)).model.directories;
+                let dirs = (await getFilesStructure(env, user, '/', false, false)).model.directories;
                 for (let id = 0; id < dirs.length; id++) {
                     const dir = dirs[id];
                     await download(env, user, dir.name, argv.outPath, true, null, argv.raw, argv.iamstupid);
@@ -194,7 +194,7 @@ async function download(env, user, dirPath, outPath, recursive, outname, raw, ia
 }
 
 async function getFilesStructure(env, user, dirPath, recursive, includeFiles) {
-    let res = await fetch(`https://${env.host}/Admin/Api/DirectoryAll?DirectoryPath=${dirPath ?? ''}&recursive=${recursive ?? 'false'}&includeFiles=${includeFiles ?? 'false'}`, {
+    let res = await fetch(`https://${env.host}/Admin/Api/DirectoryAll?DirectoryPath=${dirPath ?? '/'}&recursive=${recursive ?? 'false'}&includeFiles=${includeFiles ?? 'false'}`, {
         method: 'GET',
         headers: {
             'Authorization': `Bearer ${user.apiKey}`
