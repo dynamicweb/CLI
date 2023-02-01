@@ -1,13 +1,8 @@
-import { Agent } from 'https';
 import fetch from 'node-fetch';
 import path from 'path';
 import fs from 'fs';
-import { setupEnv } from './env.js';
+import { setupEnv, getAgent } from './env.js';
 import { setupUser } from './login.js';
-
-const agent = new Agent({
-    rejectUnauthorized: false
-})
 
 const exclude = ['_', '$0', 'command', 'list', 'json']
 
@@ -48,12 +43,12 @@ async function handleCommand(argv) {
 
 async function getProperties(env, user, command) {
     return `This option currently doesn't work`
-    let res = await fetch(`https://${env.host}/Admin/Api/CommandByName?name=${command}`, {
+    let res = await fetch(`${env.protocol}://${env.host}/Admin/Api/CommandByName?name=${command}`, {
         method: 'GET',
         headers: {
             'Authorization': `Bearer ${user.apiKey}`
         },
-        agent: agent
+        agent: getAgent(env.protocol)
     })
     if (res.ok) {
         let body = await res.json()
@@ -77,14 +72,14 @@ function parseJsonOrPath(json) {
 }
 
 async function runCommand(env, user, command, queryParams, data) {
-    let res = await fetch(`https://${env.host}/Admin/Api/${command}?` + new URLSearchParams(queryParams), {
+    let res = await fetch(`${env.protocol}://${env.host}/Admin/Api/${command}?` + new URLSearchParams(queryParams), {
         method: 'POST',
         body: JSON.stringify(data),
         headers: {
             'Authorization': `Bearer ${user.apiKey}`,
             'Content-Type': 'application/json'
         },
-        agent: agent
+        agent: getAgent(env.protocol)
     })
     if (!res.ok) {
         console.log(`Error when doing request ${res.url}`)

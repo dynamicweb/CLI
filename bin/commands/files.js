@@ -3,14 +3,9 @@ import path from 'path';
 import fs from 'fs';
 import extract from 'extract-zip';
 import FormData from 'form-data';
-import { Agent } from 'https';
-import { setupEnv } from './env.js';
+import { setupEnv, getAgent } from './env.js';
 import { setupUser } from './login.js';
 import { interactiveConfirm } from '../utils.js';
-
-const agent = new Agent({
-    rejectUnauthorized: false
-})
 
 export function filesCommand() {
     return {
@@ -156,14 +151,14 @@ async function download(env, user, dirPath, outPath, recursive, outname, raw, ia
         'DirectoryPath': dirPath ?? '',
         'ExcludeDirectories': [ excludeDirectories ],
     }
-    fetch(`https://${env.host}/Admin/Api/${endpoint}`, {
+    fetch(`${env.protocol}://${env.host}/Admin/Api/${endpoint}`, {
         method: 'POST',
         body: JSON.stringify(data),
         headers: {
             'Authorization': `Bearer ${user.apiKey}`,
             'Content-Type': 'application/json'
         },
-        agent: agent
+        agent: getAgent(env.protocol)
     }).then((res) => {
         const header = res.headers.get('content-disposition');
         const parts = header?.split(';');
@@ -194,12 +189,12 @@ async function download(env, user, dirPath, outPath, recursive, outname, raw, ia
 }
 
 async function getFilesStructure(env, user, dirPath, recursive, includeFiles) {
-    let res = await fetch(`https://${env.host}/Admin/Api/DirectoryAll?DirectoryPath=${dirPath ?? ''}&recursive=${recursive ?? 'false'}&includeFiles=${includeFiles ?? 'false'}`, {
+    let res = await fetch(`${env.protocol}://${env.host}/Admin/Api/DirectoryAll?DirectoryPath=${dirPath ?? ''}&recursive=${recursive ?? 'false'}&includeFiles=${includeFiles ?? 'false'}`, {
         method: 'GET',
         headers: {
             'Authorization': `Bearer ${user.apiKey}`
         },
-        agent: agent
+        agent: getAgent(env.protocol)
     });
     if (res.ok) {
         return await res.json();
@@ -212,13 +207,13 @@ export async function uploadFile(env, user, localFilePath, destinationPath) {
     console.log('Uploading file')
     let files = new FormData();
     files.append('files', fs.createReadStream(localFilePath));
-    let res = await fetch(`https://${env.host}/Admin/Api/FileUpload?Command.Path=${destinationPath}`, {
+    let res = await fetch(`${env.protocol}://${env.host}/Admin/Api/FileUpload?Command.Path=${destinationPath}`, {
         method: 'POST',
         body: files,
         headers: {
             'Authorization': `Bearer ${user.apiKey}`
         },
-        agent: agent
+        agent: getAgent(env.protocol)
     });
     if (res.ok) {
         if (env.verbose) console.log(await res.json())

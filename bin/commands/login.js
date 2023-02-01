@@ -1,12 +1,7 @@
 import fetch from 'node-fetch';
-import { interactiveEnv } from './env.js'
+import { interactiveEnv, getAgent } from './env.js'
 import { updateConfig, getConfig } from './config.js';
 import yargsInteractive from 'yargs-interactive';
-import { Agent } from 'https';
-
-const agent = new Agent({
-    rejectUnauthorized: false
-})
 
 export function loginCommand() {
     return {
@@ -74,14 +69,18 @@ export async function interactiveLogin(argv, options) {
     await yargsInteractive()
         .interactive(options)
         .then(async (result) => {
-            if (!getConfig().env || !getConfig().env[result.environment] || !getConfig().env[result.environment].host) {
-                if (!argv.host)
+            if (!getConfig().env || !getConfig().env[result.environment] || !getConfig().env[result.environment].host || !getConfig().env[result.environment].protocol) {
+                if (!argv.host || !argv.protocol)
                     console.log(`The environment specified is missing parameters, please specify them`)
                 await interactiveEnv(argv, {
                     environment: {
                         type: 'input',
                         default: result.environment,
                         prompt: 'never'
+                    },
+                    protocol: {
+                        type: 'input',
+                        prompt: 'if-no-arg'
                     },
                     host: {
                         type: 'input',
@@ -97,8 +96,9 @@ export async function interactiveLogin(argv, options) {
 }
 
 async function loginInteractive(result) {
-    var token = await login(result.username, result.password, result.environment);
-    var apiKey = await getApiKey(token, result.environment)
+    var protocol = getConfig().env[result.environment].protocol;
+    var token = await login(result.username, result.password, result.environment, protocol);
+    var apiKey = await getApiKey(token, result.environment, protocol)
     getConfig().env = getConfig().env || {};
     getConfig().env[result.environment].users = getConfig().env[result.environment].users || {};
     getConfig().env[result.environment].users[result.username] = getConfig().env[result.environment].users[result.username] || {};
@@ -108,22 +108,22 @@ async function loginInteractive(result) {
     updateConfig();
 }
 
-async function login(username, password, env) {
+async function login(username, password, env, protocol) {
     let data = new URLSearchParams();
     data.append('Username', username);
     data.append('Password', password);
-    var res = await fetch(`https://${getConfig().env[env].host}/Admin/Authentication/Login`, {
+    var res = await fetch(`${protocol}://${getConfig().env[env].host}/Admin/Authentication/Login`, {
         method: 'POST',
         body: data,
         headers: {
             'Content-Type': 'application/x-www-form-urlencoded'
         },
-        agent: agent
+        agent: getAgent(protocol)
     });
 
     if (res.ok) {
         let user = parseCookies(res.headers.get('set-cookie')).user;
-        return await getToken(user, env)
+        return await getToken(user, env, protocol)
     }
     else {
         console.log(res)
@@ -146,33 +146,33 @@ function parseCookies (cookieHeader) {
     return list;
 }
 
-async function getToken(user, env) {
-    var res = await fetch(`https://${getConfig().env[env].host}/Admin/Authentication/Token`, {
+async function getToken(user, env, protocol) {
+    var res = await fetch(`${getConfig().env[env].protocol}://${getConfig().env[env].host}/Admin/Authentication/Token`, {
         method: 'GET',
         headers: {
             'cookie': `Dynamicweb.Admin=${user}`
         },
-        agent: agent
+        agent: getAgent(protocol)
     });
     if (res.ok) {
         return (await res.json()).token
     }
 }
 
-async function getApiKey(token, env) {
+async function getApiKey(token, env, protocol) {
     let data = {
         'Name': 'addin',
         'Prefix': 'addin',
         'Description': 'Auto-generated ApiKey by DW CLI'
     };
-    var res = await fetch(`https://${getConfig().env[env].host}/Admin/Api/ApiKeySave`, {
+    var res = await fetch(`${protocol}://${getConfig().env[env].host}/Admin/Api/ApiKeySave`, {
         method: 'POST',
         body: JSON.stringify( { 'model': data } ),
         headers: {
             'Content-Type': 'application/json',
             'Authorization': `Bearer ${token}`
         },
-        agent: agent
+        agent: getAgent(protocol)
     });
 
     if (res.ok) {

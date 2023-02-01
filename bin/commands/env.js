@@ -1,5 +1,19 @@
 import { updateConfig, getConfig } from './config.js'
+import { Agent as HttpAgent } from 'http';
+import { Agent as HttpsAgent } from 'https';
 import yargsInteractive from 'yargs-interactive';
+
+const httpAgent = new HttpAgent({
+    rejectUnauthorized: false
+})
+
+const httpsAgent = new HttpsAgent({
+    rejectUnauthorized: false
+})
+
+export function getAgent(protocol) {
+    return protocol === 'http' ? httpAgent : httpsAgent;
+}
 
 export function envCommand() {
     return {
@@ -29,6 +43,10 @@ export async function setupEnv(argv) {
     let env;
     if (getConfig().env) {
         env = getConfig().env[argv.env] || getConfig().env[getConfig()?.current?.env];
+        if (!env.protocol) {
+            console.log('Protocol for environment not set, defaulting to https');
+            env.protocol = 'https';
+        }
     }
     if (!env) {
         console.log('Current environment not set, please set it')
@@ -58,6 +76,9 @@ async function handleEnv(argv) {
             environment: {
                 type: 'input'
             },
+            protocol: {
+                type: 'input'
+            },
             host: {
                 type: 'input'
             },
@@ -75,6 +96,7 @@ export async function interactiveEnv(argv, options) {
         .then(async (result) => {
             getConfig().env = getConfig().env || {};
             getConfig().env[result.environment] = getConfig().env[result.environment] || {};
+            getConfig().env[result.environment].protocol = result.protocol || 'https';
             if (result.host)
                 getConfig().env[result.environment].host = result.host;
             if (result.environment) {
