@@ -1,13 +1,8 @@
 import fetch from 'node-fetch';
 import path from 'path';
-import { Agent } from 'https';
-import { setupEnv } from './env.js';
+import { setupEnv, getAgent } from './env.js';
 import { setupUser } from './login.js';
 import { uploadFile } from './files.js';
-
-const agent = new Agent({
-    rejectUnauthorized: false
-})
 
 export function installCommand() {
     return {
@@ -40,14 +35,14 @@ async function installAddin(env, user, resolvedPath) {
         'AddinProvider': 'Dynamicweb.Marketplace.Providers.LocalAddinProvider',
         'Package': path.basename(resolvedPath)
     }
-    let res = await fetch(`https://${env.host}/Admin/Api/AddinInstall`, {
+    let res = await fetch(`${env.protocol}://${env.host}/Admin/Api/AddinInstall`, {
         method: 'POST',
         body: JSON.stringify( { 'model': data } ),
         headers: {
             'Content-Type': 'application/json',
             'Authorization': `Bearer ${user.apiKey}`
         },
-        agent: agent
+        agent: getAgent(env.protocol)
     });
 
     if (res.ok) {

@@ -1,13 +1,8 @@
 import fetch from 'node-fetch';
 import fs from 'fs';
 import _path from 'path';
-import { Agent } from 'https';
-import { setupEnv } from './env.js';
+import { setupEnv, getAgent } from './env.js';
 import { setupUser } from './login.js';
-
-const agent = new Agent({
-    rejectUnauthorized: false
-})
 
 export function databaseCommand() {
     return {
@@ -43,13 +38,13 @@ async function handleDatabase(argv) {
 
 async function download(env, user, path, verbose) {
     let filename = 'database.bacpac';
-    fetch(`https://${env.host}/Admin/Api/DatabaseDownload`, {
+    fetch(`${env.protocol}://${env.host}/Admin/Api/DatabaseDownload`, {
         method: 'POST',
         headers: {
             'Authorization': `Bearer ${user.apiKey}`,
             'content-type': 'application/json'
         },
-        agent: agent
+        agent: getAgent(env.protocol)
     }).then(async (res) => {
         if (verbose) console.log(res)
         const header = res.headers.get('Content-Disposition');
