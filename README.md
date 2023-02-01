@@ -1,5 +1,15 @@
 # DynamicWeb CLI
 
+## What is it?
+DynamicWeb CLI is a powerful command line tool designed to help developers quickly and efficiently manage any given DynamicWeb 10 solution they may have access to. These tools inclues an easy setup and handling of different environments, access to the Management API and an easy way to update a Swift solution.
+
+Logging into a DynamicWeb 10 solution through the DynamicWeb CLI will create an API Key for the given user, which in turn lets you use any Queries and Commands the solution had, meaning you can control everything you can do in the backend, from your command line.
+With this, you can hook it up to your own build pipelines and processes, if certain requests needs to happen before or after deployments or changes.
+
+The DynamicWeb CLI can also help with active development of custom addins to solutions. With a simple `dw install` command it will upload and install your custom code to a solution.
+
+Extracting files from solutions is just as easy as well, with the DynamicWeb CLI you can list out the structure of a solution and get full exports of the files structure and the database. Importing files into a solution is just as easy as well, as long as you have access to the files and the solution, they can be imported with a simple command using the DynamicWeb CLI.
+
 ## Get started
 To install after cloning, move to project dir and run
 > $ npm install -g .
