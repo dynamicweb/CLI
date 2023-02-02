@@ -42,7 +42,7 @@ async function installAddin(env, user, resolvedPath) {
     }
     let res = await fetch(`https://${env.host}/Admin/Api/AddinInstall`, {
         method: 'POST',
-        body: JSON.stringify( { 'model': data } ),
+        body: JSON.stringify(data),
         headers: {
             'Content-Type': 'application/json',
             'Authorization': `Bearer ${user.apiKey}`

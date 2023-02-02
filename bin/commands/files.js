@@ -95,7 +95,8 @@ async function handleFiles(argv) {
         }
     } else if (argv.import) {
         if (argv.dirPath && argv.outPath) {
-            await uploadFile(env, user, argv.dirPath, argv.outPath);
+            let resolvedPath = path.resolve(argv.dirPath)
+            await uploadFile(env, user, resolvedPath, argv.outPath);
         }
     }
 }
@@ -210,11 +211,12 @@ async function getFilesStructure(env, user, dirPath, recursive, includeFiles) {
 
 export async function uploadFile(env, user, localFilePath, destinationPath) {
     console.log('Uploading file')
-    let files = new FormData();
-    files.append('files', fs.createReadStream(localFilePath));
-    let res = await fetch(`https://${env.host}/Admin/Api/FileUpload?Command.Path=${destinationPath}`, {
+    let form = new FormData();
+    form.append('path', destinationPath);
+    form.append('files', fs.createReadStream(localFilePath));
+    let res = await fetch(`https://${env.host}/Admin/Api/Upload`, {
         method: 'POST',
-        body: files,
+        body: form,
         headers: {
             'Authorization': `Bearer ${user.apiKey}`
         },
