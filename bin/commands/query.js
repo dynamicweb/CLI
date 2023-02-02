@@ -1,12 +1,7 @@
-import { Agent } from 'https';
 import fetch from 'node-fetch';
-import { setupEnv } from './env.js';
+import { setupEnv, getAgent } from './env.js';
 import { setupUser } from './login.js';
 import yargsInteractive from 'yargs-interactive';
-
-const agent = new Agent({
-    rejectUnauthorized: false
-})
 
 const exclude = ['_', '$0', 'query', 'list', 'i', 'l', 'interactive']
 
@@ -50,12 +45,12 @@ async function getProperties(argv) {
     let env = await setupEnv(argv);
     let user = await setupUser(argv, env);
 
-    let res = await fetch(`https://${env.host}/Admin/Api/QueryByName?name=${argv.query}`, {
+    let res = await fetch(`${env.protocol}://${env.host}/Admin/Api/QueryByName?name=${argv.query}`, {
         method: 'GET',
         headers: {
             'Authorization': `Bearer ${user.apiKey}`
         },
-        agent: agent
+        agent: getAgent(env.protocol)
     })
     if (res.ok) {
         let body = await res.json()
@@ -83,12 +78,12 @@ async function getQueryParams(argv) {
 }
 
 async function runQuery(env, user, query, params) {
-    let res = await fetch(`https://${env.host}/Admin/Api/${query}?` + new URLSearchParams(params), {
+    let res = await fetch(`${env.protocol}://${env.host}/Admin/Api/${query}?` + new URLSearchParams(params), {
         method: 'GET',
         headers: {
             'Authorization': `Bearer ${user.apiKey}`
         },
-        agent: agent
+        agent: getAgent(env.protocol)
     })
     if (!res.ok) {
         console.log(`Error when doing request ${res.url}`)
