@@ -75,17 +75,18 @@ async function handleFiles(argv) {
 
     if (argv.export) {
         if (argv.dirPath) {
-            await download(env, user, argv.dirPath, argv.outPath, argv.recursive, null, argv.raw);
+            await download(env, user, argv.dirPath, argv.outPath, argv.recursive, null, argv.raw, []);
         } else {
             await interactiveConfirm('Are you sure you want a full export of files?', async () => {
                 console.log('Full export is starting')
-                let dirs = (await getFilesStructure(env, user, '/', false, false)).model.directories;
+                let filesStructure = (await getFilesStructure(env, user, '/', false, argv.includeFiles)).model;
+                let dirs = filesStructure.directories;
                 for (let id = 0; id < dirs.length; id++) {
                     const dir = dirs[id];
-                    await download(env, user, dir.name, argv.outPath, true, null, argv.raw, argv.iamstupid);
+                    await download(env, user, dir.name, argv.outPath, true, null, argv.raw, argv.iamstupid, []);
                 }
-                await download(env, user, '', argv.outPath, false, 'Base.zip', argv.raw, argv.iamstupid);
-                console.log('The files in the base "files" folder is in Base.zip, each directory in "files" is in its own zip')
+                await download(env, user, '/.', argv.outPath, false, 'Base.zip', argv.raw, argv.iamstupid, Array.from(filesStructure.files.data, f => f.name));
+                if (argv.raw) console.log('The files in the base "files" folder is in Base.zip, each directory in "files" is in its own zip')
             })
         }
     } else if (argv.import) {
@@ -130,13 +131,8 @@ function resolveTree(dirs, indentLevel, parentHasFiles) {
     }
 }
 
-async function download(env, user, dirPath, outPath, recursive, outname, raw, iamstupid) {
+async function download(env, user, dirPath, outPath, recursive, outname, raw, iamstupid, fileNames) {
     let endpoint;
-    if (recursive) {
-        endpoint = 'DirectoryDownload';
-    } else {
-        endpoint = 'FileDownload'
-    }
     let excludeDirectories = '';
     if (!iamstupid) {
         excludeDirectories = 'system/log';
@@ -144,14 +140,22 @@ async function download(env, user, dirPath, outPath, recursive, outname, raw, ia
             return;
         }
     }
-
-    console.log('Downloading', dirPath === '' ? 'Base' : dirPath, 'Recursive=' + recursive);
-
-    let filename;
     let data = {
-        'DirectoryPath': dirPath ?? '',
+        'DirectoryPath': dirPath ?? '/',
         'ExcludeDirectories': [ excludeDirectories ],
     }
+
+    if (recursive) {
+        endpoint = 'DirectoryDownload';
+    } else {
+        endpoint = 'FileDownload'
+        data['Ids'] = fileNames
+    }
+
+    console.log('Downloading', dirPath === '/.' ? 'Base' : dirPath, 'Recursive=' + recursive);
+
+    let filename;
+    
     fetch(`${env.protocol}://${env.host}/Admin/Api/${endpoint}`, {
         method: 'POST',
         body: JSON.stringify(data),
@@ -179,7 +183,7 @@ async function download(env, user, dirPath, outPath, recursive, outname, raw, ia
             res.body.on("error", reject);
             fileStream.on("finish", resolve);
         });
-        console.log(`Finished downloading`, dirPath === '' ? '.' : dirPath, 'Recursive=' + recursive);
+        console.log(`Finished downloading`, dirPath === '/.' ? '.' : dirPath, 'Recursive=' + recursive);
         if (!raw) {
             let filenameWithoutExtension = filename.replace('.zip', '')
             await extract(filePath, { dir: `${path.resolve(outPath)}/${filenameWithoutExtension === 'Base' ? '' : filenameWithoutExtension}` }, function (err) {})
