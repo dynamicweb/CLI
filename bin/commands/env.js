@@ -76,10 +76,8 @@ async function handleEnv(argv) {
             environment: {
                 type: 'input'
             },
-            protocol: {
-                type: 'input'
-            },
             host: {
+                describe: 'Enter your host including protocol, i.e "https://yourHost.com":',
                 type: 'input'
             },
             interactive: {
@@ -96,15 +94,26 @@ export async function interactiveEnv(argv, options) {
         .then(async (result) => {
             getConfig().env = getConfig().env || {};
             getConfig().env[result.environment] = getConfig().env[result.environment] || {};
-            getConfig().env[result.environment].protocol = result.protocol || 'https';
-            if (result.host)
-                getConfig().env[result.environment].host = result.host;
+            if (result.host) {
+                var hostSplit = result.host.split("://");
+                if (hostSplit.length == 1) {
+                    getConfig().env[result.environment].protocol = 'https';
+                    getConfig().env[result.environment].host = hostSplit[0];
+                } else if (hostSplit.length == 2) {
+                    getConfig().env[result.environment].protocol = hostSplit[0];
+                    getConfig().env[result.environment].host = hostSplit[1];
+                } else {
+                    console.log(`Issues resolving host ${result.host}`);
+                    return;
+                }
+            }
             if (result.environment) {
                 getConfig().current = getConfig().current || {};
                 getConfig().current.env = result.environment;
             }
             updateConfig();
             console.log(`Your current environment is now ${getConfig().current.env}`);
+            console.log(`To change the host of your environment, use the command 'dw env'`)
         });
 }
 
@@ -118,6 +127,7 @@ async function changeEnv(argv) {
                 prompt: 'never'
             },
             host: {
+                describe: 'Enter your host including protocol, i.e "https://yourHost.com":',
                 type: 'input',
                 prompt: 'always'
             },
