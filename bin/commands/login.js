@@ -70,7 +70,7 @@ export async function interactiveLogin(argv, options) {
         .interactive(options)
         .then(async (result) => {
             if (!getConfig().env || !getConfig().env[result.environment] || !getConfig().env[result.environment].host || !getConfig().env[result.environment].protocol) {
-                if (!argv.host || !argv.protocol)
+                if (!argv.host)
                     console.log(`The environment specified is missing parameters, please specify them`)
                 await interactiveEnv(argv, {
                     environment: {
@@ -78,11 +78,8 @@ export async function interactiveLogin(argv, options) {
                         default: result.environment,
                         prompt: 'never'
                     },
-                    protocol: {
-                        type: 'input',
-                        prompt: 'if-no-arg'
-                    },
                     host: {
+                        describe: 'Enter your host including protocol, i.e "https://yourHost.com":',
                         type: 'input',
                         prompt: 'if-no-arg'
                     },
@@ -91,14 +88,16 @@ export async function interactiveLogin(argv, options) {
                     }
                 })
             }
-            await loginInteractive(result);
+            await loginInteractive(result, argv.verbose);
         });
 }
 
-async function loginInteractive(result) {
+async function loginInteractive(result, verbose) {
     var protocol = getConfig().env[result.environment].protocol;
-    var token = await login(result.username, result.password, result.environment, protocol);
-    var apiKey = await getApiKey(token, result.environment, protocol)
+    var token = await login(result.username, result.password, result.environment, protocol, verbose);
+    if (!token) return;
+    var apiKey = await getApiKey(token, result.environment, protocol, verbose)
+    if (!apiKey) return;
     getConfig().env = getConfig().env || {};
     getConfig().env[result.environment].users = getConfig().env[result.environment].users || {};
     getConfig().env[result.environment].users[result.username] = getConfig().env[result.environment].users[result.username] || {};
@@ -108,7 +107,7 @@ async function loginInteractive(result) {
     updateConfig();
 }
 
-async function login(username, password, env, protocol) {
+async function login(username, password, env, protocol, verbose) {
     let data = new URLSearchParams();
     data.append('Username', username);
     data.append('Password', password);
@@ -123,16 +122,21 @@ async function login(username, password, env, protocol) {
 
     if (res.ok) {
         let user = parseCookies(res.headers.get('set-cookie')).user;
-        return await getToken(user, env, protocol)
+        if (!user) return;
+        return await getToken(user, env, protocol, verbose)
     }
     else {
-        console.log(res)
+        if (verbose) console.info(res)
+        console.log(`Login attempt failed with username ${username}, please verify its a valid user in your Dynamicweb solution.`)
     }
 }
 
 function parseCookies (cookieHeader) {
     const list = {};
-    if (!cookieHeader) return list;
+    if (!cookieHeader) {
+        console.log(`Could not get the necessary information from the login request, please verify its a valid user in your Dynamicweb solution.`)
+        return list;
+    }
 
     cookieHeader.replace('httponly, ', '').replace('Dynamicweb.Admin', 'user').split(`;`).forEach(cookie => {
         let [ name, ...rest] = cookie.split(`=`);
@@ -143,11 +147,15 @@ function parseCookies (cookieHeader) {
         list[name] = decodeURIComponent(value);
     });
 
+    if (!list.user) {
+        console.log(`Could not get the necessary information from the login request, please verify its a valid user in your Dynamicweb solution.`)
+    }
+
     return list;
 }
 
-async function getToken(user, env, protocol) {
-    var res = await fetch(`${getConfig().env[env].protocol}://${getConfig().env[env].host}/Admin/Authentication/Token`, {
+async function getToken(user, env, protocol, verbose) {
+    var res = await fetch(`${protocol}://${getConfig().env[env].host}/Admin/Authentication/Token`, {
         method: 'GET',
         headers: {
             'cookie': `Dynamicweb.Admin=${user}`
@@ -157,9 +165,13 @@ async function getToken(user, env, protocol) {
     if (res.ok) {
         return (await res.json()).token
     }
+    else {
+        if (verbose) console.info(res)
+        console.log(`Could not fetch the token for the logged in user ${user}, please verify its a valid user in your Dynamicweb solution.`)
+    }
 }
 
-async function getApiKey(token, env, protocol) {
+async function getApiKey(token, env, protocol, verbose) {
     let data = {
         'Name': 'addin',
         'Prefix': 'addin',
@@ -179,7 +191,8 @@ async function getApiKey(token, env, protocol) {
         return (await res.json()).message
     }
     else {
-        console.log(await res.json())
+        if (verbose) console.info(res)
+        console.log(`Could not create an API Key for the logged in user, please verify its a valid user in your Dynamicweb solution.`)
     }
 }
 

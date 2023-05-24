@@ -1,15 +1,30 @@
 {
   "name": "@dynamicweb/cli",
   "type": "module",
+  "description": "Dynamicweb CLI is a commandline tool for interacting with Dynamicweb 10 solutions.",
   "version": "1.0.0",
   "main": "bin/index.js",
+  "files": [
+    "bin/*"
+  ],
+  "keywords": [],
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
   },
-  "author": "",
-  "license": "ISC",
+  "author": "Dynamicweb A/S (https://www.dynamicweb.com)",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/dynamicweb/CLI.git"
+  },
+  "contributors": [
+    "Dynamicweb A/S"
+  ],
+  "license": "MIT",
   "bin": {
     "dw": "bin/index.js"
+  },
+  "bugs": {
+    "url": "https://github.com/dynamicweb/CLI/issues"
   },
   "dependencies": {
     "child_process": "^1.0.2",
@@ -22,6 +37,5 @@
     "path": "^0.12.7",
     "yargs": "^17.5.1",
     "yargs-interactive": "^3.0.1"
-  },
-  "description": ""
+  }
 }
