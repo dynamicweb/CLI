@@ -5,7 +5,7 @@ export async function interactiveConfirm(question, func) {
         .interactive({
             confirm: {
                 type: 'confirm',
-                default: false,
+                default: true,
                 describe: question,
                 prompt: 'always'
             },
