@@ -28,7 +28,7 @@ export function filesCommand() {
             .option('export', {
                 alias: 'e',
                 type: 'boolean',
-                describe: 'Exports the directory at [dirPath] to [outPath]'
+                describe: 'Exports the specified directory and all subdirectories at [dirPath] to [outPath]'
             })
             .option('import', {
                 alias: 'i',
@@ -75,11 +75,11 @@ async function handleFiles(argv) {
 
     if (argv.export) {
         if (argv.dirPath) {
-            await download(env, user, argv.dirPath, argv.outPath, argv.recursive, null, argv.raw, []);
+            await download(env, user, argv.dirPath, argv.outPath, true, null, argv.raw, argv.iamstupid, []);
         } else {
             await interactiveConfirm('Are you sure you want a full export of files?', async () => {
                 console.log('Full export is starting')
-                let filesStructure = (await getFilesStructure(env, user, '/', false, argv.includeFiles)).model;
+                let filesStructure = (await getFilesStructure(env, user, '/', false, true)).model;
                 let dirs = filesStructure.directories;
                 for (let id = 0; id < dirs.length; id++) {
                     const dir = dirs[id];

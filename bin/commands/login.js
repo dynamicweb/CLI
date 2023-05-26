@@ -161,8 +161,8 @@ async function getToken(user, env, protocol) {
 
 async function getApiKey(token, env, protocol) {
     let data = {
-        'Name': 'addin',
-        'Prefix': 'addin',
+        'Name': 'DW CLI',
+        'Prefix': 'CLI',
         'Description': 'Auto-generated ApiKey by DW CLI'
     };
     var res = await fetch(`${protocol}://${getConfig().env[env].host}/Admin/Api/ApiKeySave`, {
