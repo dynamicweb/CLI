@@ -31,10 +31,14 @@ async function handleInstall(argv) {
 
 async function installAddin(env, user, resolvedPath) {
     console.log('Installing addin')
+    console.log(path.basename(resolvedPath))
+    let filename = path.basename(resolvedPath);
     let data = {
-        'AddinProvider': 'Dynamicweb.Marketplace.Providers.LocalAddinProvider',
-        'Package': path.basename(resolvedPath)
+        'Ids': [
+            `${filename.substring(0, filename.lastIndexOf('.')) || filename}|${path.extname(resolvedPath)}`
+        ]
     }
+    console.log(data)
     let res = await fetch(`${env.protocol}://${env.host}/Admin/Api/AddinInstall`, {
         method: 'POST',
         body: JSON.stringify(data),
