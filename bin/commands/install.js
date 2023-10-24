@@ -54,6 +54,7 @@ async function installAddin(env, user, resolvedPath) {
         console.log(`Addin installed`)
     }
     else {
-        console.log(res)
+        console.log('Request failed, returned error:')
+        console.log(await res.json())
     }
 }
