@@ -39,6 +39,10 @@ function baseCommand() {
         command: '$0',
         describe: 'Shows the current env and user being used',
         handler: () => {
+            if (Object.keys(getConfig()).length === 0) {
+                console.log('To login to a solution use `dw login`')
+                return;
+            } 
             console.log(`Environment: ${getConfig()?.current?.env}`)
             console.log(`User: ${getConfig()?.env[getConfig()?.current?.env]?.current?.user}`)
             console.log(`Protocol: ${getConfig()?.env[getConfig()?.current?.env]?.protocol}`)
