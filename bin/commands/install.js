@@ -31,7 +31,6 @@ async function handleInstall(argv) {
 
 async function installAddin(env, user, resolvedPath) {
     console.log('Installing addin')
-    console.log(path.basename(resolvedPath))
     let filename = path.basename(resolvedPath);
     let data = {
         'Ids': [
