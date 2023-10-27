@@ -31,9 +31,11 @@ async function handleInstall(argv) {
 
 async function installAddin(env, user, resolvedPath) {
     console.log('Installing addin')
+    let filename = path.basename(resolvedPath);
     let data = {
-        'AddinProvider': 'Dynamicweb.Marketplace.Providers.LocalAddinProvider',
-        'Package': path.basename(resolvedPath)
+        'Ids': [
+            `${filename.substring(0, filename.lastIndexOf('.')) || filename}|${path.extname(resolvedPath)}`
+        ]
     }
     let res = await fetch(`${env.protocol}://${env.host}/Admin/Api/AddinInstall`, {
         method: 'POST',
@@ -50,6 +52,7 @@ async function installAddin(env, user, resolvedPath) {
         console.log(`Addin installed`)
     }
     else {
-        console.log(res)
+        console.log('Request failed, returned error:')
+        console.log(await res.json())
     }
 }
