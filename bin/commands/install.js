@@ -37,7 +37,6 @@ async function installAddin(env, user, resolvedPath) {
             `${filename.substring(0, filename.lastIndexOf('.')) || filename}|${path.extname(resolvedPath)}`
         ]
     }
-    console.log(data)
     let res = await fetch(`${env.protocol}://${env.host}/Admin/Api/AddinInstall`, {
         method: 'POST',
         body: JSON.stringify(data),
