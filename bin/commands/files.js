@@ -35,19 +35,28 @@ export function filesCommand() {
                 type: 'boolean',
                 describe: 'Imports the file at [dirPath] to [outPath]'
             })
+            .option('overwrite', {
+                alias: 'o',
+                type: 'boolean',
+                describe: 'Used with import, will overwrite existing files at destrination if set to true'
+            })
+            .option('createEmpty', {
+                type: 'boolean',
+                describe: 'Used with import, will create a file even if its empty'
+            })
             .option('includeFiles', {
                 alias: 'f',
                 type: 'boolean',
-                describe: 'Includes files in list of directories and files'
+                describe: 'Used with export, includes files in list of directories and files'
             })
             .option('recursive', {
                 alias: 'r',
                 type: 'boolean',
-                describe: 'Handles all directories recursively'
+                describe: 'Used with list, import and export, handles all directories recursively'
             })
             .option('raw', {
                 type: 'boolean',
-                describe: 'Keeps zip file instead of unpacking it'
+                describe: 'Used with export, keeps zip file instead of unpacking it'
             })
             .option('iamstupid', {
                 type: 'boolean',
@@ -91,9 +100,58 @@ async function handleFiles(argv) {
         }
     } else if (argv.import) {
         if (argv.dirPath && argv.outPath) {
-            let resolvedPath = path.resolve(argv.dirPath)
-            await uploadFile(env, user, resolvedPath, argv.outPath);
+            let resolvedPath = path.resolve(argv.dirPath);
+            let files;
+            if (!argv.overwrite) {
+                files = (await getFilesStructure(env, user, argv.outPath, argv.recursive, true)).model;
+            }
+            if (argv.recursive) {
+                await processDirectory(env, user, resolvedPath, argv.outPath, files, resolvedPath, argv.createEmpty, true);
+            } else {
+                let filesInDir = getFilesInDirectory(resolvedPath);
+                if (files)
+                    filesInDir = getFilesNotInData(filesInDir, files.files.data, resolvedPath);
+                await uploadFiles(env, user, filesInDir, argv.outPath, argv.createEmpty);
+            }
         }
+    }
+}
+
+function convertToDataFormat(filePath, resolvedPath) {
+    const relativePath = `/Files${filePath.substring(resolvedPath.length)}`;
+    return path.format(path.parse(relativePath)).replace(/\\/g, '/');
+}
+
+function getFilesNotInData(filesInDir, data, resolvedPath) {
+    const existingPaths = data.map(file => file.filePath);
+    return filesInDir.filter(filePath => {
+        const convertedPath = convertToDataFormat(filePath, resolvedPath);
+        return !existingPaths.includes(convertedPath);
+    });
+}
+
+function getFilesInDirectory(dirPath) {
+    return fs.readdirSync(dirPath)
+            .map(file => path.join(dirPath, file))
+            .filter(file => fs.statSync(file).isFile());
+}
+
+async function processDirectory(env, user, dirPath, outPath, files, originalDir, createEmpty, isRoot = false) {
+    let filesInDir = getFilesInDirectory(dirPath);
+    let missingFiles;
+    if (files === undefined)
+        missingFiles = filesInDir;
+    else
+        missingFiles = getFilesNotInData(filesInDir, files.files.data, originalDir);
+    if (missingFiles.length > 0)
+        await uploadFiles(env, user, missingFiles, isRoot ? outPath : path.join(outPath, path.basename(dirPath)), createEmpty);
+
+    const subDirectories = fs.readdirSync(dirPath)
+                            .map(subDir => path.join(dirPath, subDir))
+                            .filter(subDir => fs.statSync(subDir).isDirectory());
+    for (let subDir of subDirectories) {
+        const remoteSubDir = files?.directories.find(dir => dir.name === path.basename(subDir));
+        await processDirectory(env, user, subDir, isRoot ? outPath : path.join(outPath, path.basename(dirPath)), remoteSubDir, originalDir, createEmpty);
     }
 }
 
@@ -208,12 +266,15 @@ async function getFilesStructure(env, user, dirPath, recursive, includeFiles) {
     }
 }
 
-export async function uploadFile(env, user, localFilePath, destinationPath) {
-    console.log('Uploading file')
+export async function uploadFiles(env, user, localFilePaths, destinationPath, createEmpty = false) {
+    console.log('Uploading files')
     let form = new FormData();
     form.append('path', destinationPath);
-    form.append('files', fs.createReadStream(localFilePath));
-    let res = await fetch(`${env.protocol}://${env.host}/Admin/Api/Upload`, {
+    localFilePaths.forEach((localPath, index) => {
+        console.log(localPath)
+        form.append('files', fs.createReadStream(path.resolve(localPath)));
+    });
+    let res = await fetch(`${env.protocol}://${env.host}/Admin/Api/Upload?` + new URLSearchParams({"createEmptyFiles": createEmpty}), {
         method: 'POST',
         body: form,
         headers: {
@@ -223,7 +284,7 @@ export async function uploadFile(env, user, localFilePath, destinationPath) {
     });
     if (res.ok) {
         if (env.verbose) console.log(await res.json())
-        console.log(`File uploaded`)
+        console.log(`Files uploaded`)
     }
     else {
         console.log(res)
