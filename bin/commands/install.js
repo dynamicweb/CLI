@@ -2,7 +2,7 @@ import fetch from 'node-fetch';
 import path from 'path';
 import { setupEnv, getAgent } from './env.js';
 import { setupUser } from './login.js';
-import { uploadFile } from './files.js';
+import { uploadFiles } from './files.js';
 
 export function installCommand() {
     return {
@@ -25,7 +25,7 @@ async function handleInstall(argv) {
     let env = await setupEnv(argv);
     let user = await setupUser(argv, env);
     let resolvedPath = path.resolve(argv.filePath)
-    await uploadFile(env, user, resolvedPath, 'System/AddIns/Local');
+    await uploadFiles(env, user, [resolvedPath], 'System/AddIns/Local');
     await installAddin(env, user, resolvedPath)
 }
 
