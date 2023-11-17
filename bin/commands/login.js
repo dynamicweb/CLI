@@ -18,11 +18,24 @@ export function loginCommand() {
 }
 
 export async function setupUser(argv, env) {
-    let user;
-    if (env.users) {
-        user = env.users[argv.user] || env.users[env.current.user];
+    let user = {};
+    let askLogin = true;
+
+    if (argv.apiKey) {
+        user.apiKey = argv.apiKey;
+        askLogin = false;
     }
-    if (!user) {
+
+    if (!user.apiKey && env.users) {
+        user = env.users[argv.user] || env.users[env.current.user];
+        askLogin = false;
+    }
+
+    if (askLogin && argv.host) {
+        console.log('Please add an --apiKey to the command as overriding the host requires that.')
+        process.exit();
+    }
+    else if (askLogin) {
         console.log('Current user not set, please login')
         await interactiveLogin(argv, {
             environment: {
@@ -42,6 +55,7 @@ export async function setupUser(argv, env) {
         })
         user = env.users[env.current.user];
     }
+
     return user;
 }
 
