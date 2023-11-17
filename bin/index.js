@@ -31,6 +31,15 @@ yargs(hideBin(process.argv))
         type: 'boolean',
         description: 'Run with verbose logging'
     })
+    .option('protocol', {
+        description: 'Allows setting the protocol used, only used together with --host, defaulting to https'
+    })
+    .option('host', {
+        description: 'Allows setting the host used, only allowed if an --apiKey is specified'
+    })
+    .option('apiKey', {
+        description: 'Allows setting the apiKey for an environmentless execution of the CLI command'
+    })
     .demandCommand()
     .parse()
 
