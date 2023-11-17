@@ -40,15 +40,27 @@ export function envCommand() {
 }
 
 export async function setupEnv(argv) {
-    let env;
-    if (getConfig().env) {
+    let env = {};
+    let askEnv = true;
+
+    if (argv.host) {
+        askEnv = false;
+        env.host = argv.host;
+        if (argv.protocol) {
+            env.protocol = argv.protocol;
+        } else {
+            env.protocol = 'https';
+        }
+    }
+
+    if (askEnv && getConfig().env) {
         env = getConfig().env[argv.env] || getConfig().env[getConfig()?.current?.env];
         if (!env.protocol) {
             console.log('Protocol for environment not set, defaulting to https');
             env.protocol = 'https';
         }
     }
-    if (!env) {
+    else if (askEnv) {
         console.log('Current environment not set, please set it')
         await interactiveEnv(argv, {
             environment: {
