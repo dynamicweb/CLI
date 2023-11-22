@@ -6,6 +6,8 @@ import FormData from 'form-data';
 import { setupEnv, getAgent } from './env.js';
 import { setupUser } from './login.js';
 import { interactiveConfirm } from '../utils.js';
+import { runQuery } from './query.js';
+import { runCommand } from './command.js';
 
 export function filesCommand() {
     return {
@@ -43,6 +45,10 @@ export function filesCommand() {
             .option('createEmpty', {
                 type: 'boolean',
                 describe: 'Used with import, will create a file even if its empty'
+            })
+            .option('createDirectory', {
+                type: 'boolean',
+                describe: 'Used with import, will create directories if they dont exist'
             })
             .option('includeFiles', {
                 alias: 'f',
@@ -106,12 +112,12 @@ async function handleFiles(argv) {
                 files = (await getFilesStructure(env, user, argv.outPath, argv.recursive, true)).model;
             }
             if (argv.recursive) {
-                await processDirectory(env, user, resolvedPath, argv.outPath, files, resolvedPath, argv.createEmpty, true);
+                await processDirectory(env, user, resolvedPath, argv.outPath, files, resolvedPath, argv.createEmpty, argv.createDirectory, true);
             } else {
                 let filesInDir = getFilesInDirectory(resolvedPath);
                 if (files)
                     filesInDir = getFilesNotInData(filesInDir, files.files.data, resolvedPath);
-                await uploadFiles(env, user, filesInDir, argv.outPath, argv.createEmpty);
+                await uploadFiles(env, user, filesInDir, argv.outPath, argv.createEmpty, argv.createDirectory);
             }
         }
     }
@@ -136,22 +142,22 @@ function getFilesInDirectory(dirPath) {
             .filter(file => fs.statSync(file).isFile());
 }
 
-async function processDirectory(env, user, dirPath, outPath, files, originalDir, createEmpty, isRoot = false) {
+async function processDirectory(env, user, dirPath, outPath, files, originalDir, createEmpty, createDirectory, isRoot = false) {
     let filesInDir = getFilesInDirectory(dirPath);
     let missingFiles;
     if (files === undefined)
         missingFiles = filesInDir;
     else
-        missingFiles = getFilesNotInData(filesInDir, files.files.data, originalDir);
+        missingFiles = getFilesNotInData(filesInDir, files.files?.data ?? [], originalDir);
     if (missingFiles.length > 0)
-        await uploadFiles(env, user, missingFiles, isRoot ? outPath : path.join(outPath, path.basename(dirPath)), createEmpty);
+        await uploadFiles(env, user, missingFiles, isRoot ? outPath : path.join(outPath, path.basename(dirPath)), createEmpty, createDirectory);
 
     const subDirectories = fs.readdirSync(dirPath)
                             .map(subDir => path.join(dirPath, subDir))
                             .filter(subDir => fs.statSync(subDir).isDirectory());
     for (let subDir of subDirectories) {
-        const remoteSubDir = files?.directories.find(dir => dir.name === path.basename(subDir));
-        await processDirectory(env, user, subDir, isRoot ? outPath : path.join(outPath, path.basename(dirPath)), remoteSubDir, originalDir, createEmpty);
+        const remoteSubDir = files?.directories?.find(dir => dir.name === path.basename(subDir));
+        await processDirectory(env, user, subDir, isRoot ? outPath : path.join(outPath, path.basename(dirPath)), remoteSubDir, originalDir, createEmpty, createDirectory);
     }
 }
 
@@ -266,7 +272,14 @@ async function getFilesStructure(env, user, dirPath, recursive, includeFiles) {
     }
 }
 
-export async function uploadFiles(env, user, localFilePaths, destinationPath, createEmpty = false) {
+export async function uploadFiles(env, user, localFilePaths, destinationPath, createEmpty = false, createDirectory = false) {
+    if (createDirectory && destinationPath !== '.') {
+        let delimiter = destinationPath.includes('\\') ? '\\' : '/';
+        let parts = destinationPath.split(delimiter);
+        let lastPart = parts.pop();
+        let remainingPath = parts.length === 0 ? '/' : parts.join(delimiter);
+        await tryCreateFolder(env, user, remainingPath, lastPart);
+    }
     console.log('Uploading files')
     let form = new FormData();
     form.append('path', destinationPath);
@@ -287,7 +300,27 @@ export async function uploadFiles(env, user, localFilePaths, destinationPath, cr
         console.log(`Files uploaded`)
     }
     else {
+        console.log('Uploading files failed')
         console.log(res)
+        if (!createDirectory)
+            console.log('Try using --createDirectory if the directory on the server does not exist')
         return;
+    }
+}
+
+export async function tryCreateFolder(env, user, parentPath, directoryName) {
+    let params = {
+        "Name": directoryName,
+        "ParentPath": parentPath
+    };
+    let res = await runQuery(env, user, 'DirectoryByName', params);
+    if (res.model.Name !== directoryName) {
+        let data = {
+            "name": directoryName,
+            "model": {
+                "ParentPath": parentPath
+            }
+        };
+        await runCommand(env, user, 'DirectorySave', null, data)
     }
 }

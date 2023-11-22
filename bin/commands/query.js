@@ -77,7 +77,7 @@ async function getQueryParams(argv) {
     return params
 }
 
-async function runQuery(env, user, query, params) {
+export async function runQuery(env, user, query, params) {
     let res = await fetch(`${env.protocol}://${env.host}/Admin/Api/${query}?` + new URLSearchParams(params), {
         method: 'GET',
         headers: {
