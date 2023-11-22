@@ -71,7 +71,7 @@ function parseJsonOrPath(json) {
     }
 }
 
-async function runCommand(env, user, command, queryParams, data) {
+export async function runCommand(env, user, command, queryParams, data) {
     let res = await fetch(`${env.protocol}://${env.host}/Admin/Api/${command}?` + new URLSearchParams(queryParams), {
         method: 'POST',
         body: JSON.stringify(data),
