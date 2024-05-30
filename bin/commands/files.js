@@ -213,7 +213,6 @@ async function download(env, user, dirPath, outPath, recursive, outname, raw, ia
     console.log('Downloading', dirPath === '/.' ? 'Base' : dirPath, 'Recursive=' + recursive);
 
     let filename;
-    
     fetch(`${env.protocol}://${env.host}/Admin/Api/${endpoint}`, {
         method: 'POST',
         body: JSON.stringify(data),
@@ -274,7 +273,7 @@ export async function uploadFiles(env, user, localFilePaths, destinationPath, cr
         console.log(localPath)
         form.append('files', fs.createReadStream(path.resolve(localPath)));
     });
-    let res = await fetch(`${env.protocol}://${env.host}/Admin/Api/Upload?` + new URLSearchParams({"createEmptyFiles": createEmpty}), {
+    let res = await fetch(`${env.protocol}://${env.host}/Admin/Api/Upload?` + new URLSearchParams({"createEmptyFiles": createEmpty, "createMissingDirectories": true}), {
         method: 'POST',
         body: form,
         headers: {
@@ -288,6 +287,7 @@ export async function uploadFiles(env, user, localFilePaths, destinationPath, cr
     }
     else {
         console.log(res)
+        console.log(res.json())
         return;
     }
 }
