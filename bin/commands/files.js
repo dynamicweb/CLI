@@ -108,9 +108,14 @@ async function handleFiles(argv) {
             if (argv.recursive) {
                 await processDirectory(env, user, resolvedPath, argv.outPath, files, resolvedPath, argv.createEmpty, true);
             } else {
-                let filesInDir = getFilesInDirectory(resolvedPath);
-                if (files)
-                    filesInDir = getFilesNotInData(filesInDir, files.files.data, resolvedPath);
+                let filesInDir = [];
+                if (fs.existsSync(resolvedPath) && fs.lstatSync(resolvedPath).isDirectory()) {
+                    filesInDir = getFilesInDirectory(resolvedPath)
+                    if (files)
+                        filesInDir = getFilesNotInData(filesInDir, files.files.data, resolvedPath);
+                } else if (fs.existsSync(resolvedPath)) {
+                    filesInDir = [resolvedPath];
+                }
                 await uploadFiles(env, user, filesInDir, argv.outPath, argv.createEmpty);
             }
         }
