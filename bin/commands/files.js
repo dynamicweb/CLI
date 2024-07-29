@@ -101,17 +101,11 @@ async function handleFiles(argv) {
     } else if (argv.import) {
         if (argv.dirPath && argv.outPath) {
             let resolvedPath = path.resolve(argv.dirPath);
-            let files;
-            if (!argv.overwrite) {
-                files = (await getFilesStructure(env, user, argv.outPath, argv.recursive, true)).model;
-            }
             if (argv.recursive) {
-                await processDirectory(env, user, resolvedPath, argv.outPath, files, resolvedPath, argv.createEmpty, true);
+                await processDirectory(env, user, resolvedPath, argv.outPath, resolvedPath, argv.createEmpty, true, argv.overwrite);
             } else {
                 let filesInDir = getFilesInDirectory(resolvedPath);
-                if (files)
-                    filesInDir = getFilesNotInData(filesInDir, files.files.data, resolvedPath);
-                await uploadFiles(env, user, filesInDir, argv.outPath, argv.createEmpty);
+                await uploadFiles(env, user, filesInDir, argv.outPath, argv.createEmpty, argv.overwrite);
             }
         }
     }
@@ -122,36 +116,22 @@ function convertToDataFormat(filePath, resolvedPath) {
     return path.format(path.parse(relativePath)).replace(/\\/g, '/');
 }
 
-function getFilesNotInData(filesInDir, data, resolvedPath) {
-    const existingPaths = data.map(file => file.filePath);
-    return filesInDir.filter(filePath => {
-        const convertedPath = convertToDataFormat(filePath, resolvedPath);
-        return !existingPaths.includes(convertedPath);
-    });
-}
-
 function getFilesInDirectory(dirPath) {
     return fs.readdirSync(dirPath)
             .map(file => path.join(dirPath, file))
             .filter(file => fs.statSync(file).isFile());
 }
 
-async function processDirectory(env, user, dirPath, outPath, files, originalDir, createEmpty, isRoot = false) {
+async function processDirectory(env, user, dirPath, outPath, originalDir, createEmpty, isRoot = false, overwrite = false) {
     let filesInDir = getFilesInDirectory(dirPath);
-    let missingFiles;
-    if (files === undefined)
-        missingFiles = filesInDir;
-    else
-        missingFiles = getFilesNotInData(filesInDir, files.files.data, originalDir);
-    if (missingFiles.length > 0)
-        await uploadFiles(env, user, missingFiles, isRoot ? outPath : path.join(outPath, path.basename(dirPath)), createEmpty);
+    if (filesInDir.length > 0)
+        await uploadFiles(env, user, filesInDir, isRoot ? outPath : path.join(outPath, path.basename(dirPath)), createEmpty, overwrite);
 
     const subDirectories = fs.readdirSync(dirPath)
                             .map(subDir => path.join(dirPath, subDir))
                             .filter(subDir => fs.statSync(subDir).isDirectory());
     for (let subDir of subDirectories) {
-        const remoteSubDir = files?.directories.find(dir => dir.name === path.basename(subDir));
-        await processDirectory(env, user, subDir, isRoot ? outPath : path.join(outPath, path.basename(dirPath)), remoteSubDir, originalDir, createEmpty);
+        await processDirectory(env, user, subDir, isRoot ? outPath : path.join(outPath, path.basename(dirPath)), originalDir, createEmpty, overwrite);
     }
 }
 
@@ -265,10 +245,12 @@ async function getFilesStructure(env, user, dirPath, recursive, includeFiles) {
     }
 }
 
-export async function uploadFiles(env, user, localFilePaths, destinationPath, createEmpty = false) {
+export async function uploadFiles(env, user, localFilePaths, destinationPath, createEmpty = false, overwrite = false) {
     console.log('Uploading files')
     let form = new FormData();
     form.append('path', destinationPath);
+    form.append('skipExistingFiles', String(!overwrite));
+    form.append('allowOverwrite', String(overwrite));
     localFilePaths.forEach((localPath, index) => {
         console.log(localPath)
         form.append('files', fs.createReadStream(path.resolve(localPath)));
@@ -282,7 +264,7 @@ export async function uploadFiles(env, user, localFilePaths, destinationPath, cr
         agent: getAgent(env.protocol)
     });
     if (res.ok) {
-        if (env.verbose) console.log(await res.json())
+        console.log(await res.json())
         console.log(`Files uploaded`)
     }
     else {
