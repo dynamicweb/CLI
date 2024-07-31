@@ -111,11 +111,6 @@ async function handleFiles(argv) {
     }
 }
 
-function convertToDataFormat(filePath, resolvedPath) {
-    const relativePath = `/Files${filePath.substring(resolvedPath.length)}`;
-    return path.format(path.parse(relativePath)).replace(/\\/g, '/');
-}
-
 function getFilesInDirectory(dirPath) {
     return fs.readdirSync(dirPath)
             .map(file => path.join(dirPath, file))
@@ -131,7 +126,7 @@ async function processDirectory(env, user, dirPath, outPath, originalDir, create
                             .map(subDir => path.join(dirPath, subDir))
                             .filter(subDir => fs.statSync(subDir).isDirectory());
     for (let subDir of subDirectories) {
-        await processDirectory(env, user, subDir, isRoot ? outPath : path.join(outPath, path.basename(dirPath)), originalDir, createEmpty, overwrite);
+        await processDirectory(env, user, subDir, isRoot ? outPath : path.join(outPath, path.basename(dirPath)), originalDir, createEmpty, false, overwrite);
     }
 }
 
