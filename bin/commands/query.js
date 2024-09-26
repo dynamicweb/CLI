@@ -87,6 +87,7 @@ async function runQuery(env, user, query, params) {
     })
     if (!res.ok) {
         console.log(`Error when doing request ${res.url}`)
+        process.exit(1);
     }
     return await res.json()
 }
