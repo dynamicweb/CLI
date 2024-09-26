@@ -83,6 +83,7 @@ async function runCommand(env, user, command, queryParams, data) {
     })
     if (!res.ok) {
         console.log(`Error when doing request ${res.url}`)
+        process.exit(1);
     }
     return await res.json()
 }

@@ -58,7 +58,7 @@ async function download(env, user, path, verbose) {
         return res;
     }).then(async (res) => {
         if (!res) {
-            return;
+            process.exit(1);
         }
         const fileStream = fs.createWriteStream(_path.resolve(`${_path.resolve(path)}/${filename}`));
         await new Promise((resolve, reject) => {
