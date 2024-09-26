@@ -237,6 +237,8 @@ async function getFilesStructure(env, user, dirPath, recursive, includeFiles) {
         return await res.json();
     } else {
         console.log(res);
+        console.log(res.json());
+        process.exit(1);
     }
 }
 
@@ -247,8 +249,11 @@ export async function uploadFiles(env, user, localFilePaths, destinationPath, cr
     form.append('skipExistingFiles', String(!overwrite));
     form.append('allowOverwrite', String(overwrite));
     localFilePaths.forEach((localPath, index) => {
-        console.log(localPath)
-        form.append('files', fs.createReadStream(path.resolve(localPath)));
+        let fileToUpload = resolveFilePath(localPath)
+        console.log(fileToUpload)
+        if (fileToUpload === undefined)
+            return;
+        form.append('files', fs.createReadStream(path.resolve(fileToUpload)));
     });
     let res = await fetch(`${env.protocol}://${env.host}/Admin/Api/Upload?` + new URLSearchParams({"createEmptyFiles": createEmpty, "createMissingDirectories": true}), {
         method: 'POST',
@@ -265,6 +270,26 @@ export async function uploadFiles(env, user, localFilePaths, destinationPath, cr
     else {
         console.log(res)
         console.log(res.json())
-        return;
+        process.exit(1);
     }
+}
+
+export function resolveFilePath(filePath) {
+    let p = path.parse(path.resolve(filePath))
+    let regex = wildcardToRegExp(p.base);
+    let resolvedPath = fs.readdirSync(p.dir).filter((allFilesPaths) => allFilesPaths.match(regex) !== null)[0]
+    if (resolvedPath === undefined)
+    {
+        console.log('Could not find any files with the name ' + filePath);
+        process.exit(1);
+    }
+    return resolvedPath;
+}
+
+function wildcardToRegExp(wildcard) {
+    return new RegExp('^' + wildcard
+      .replace(/\./g, '\\.')
+      .replace(/\*/g, '.*')
+      .replace(/\?/g, '.')
+      + '$');
 }

@@ -135,6 +135,8 @@ async function login(username, password, env, protocol, verbose) {
     });
 
     if (res.ok) {
+        console.log(res)
+        console.log(res.json())
         let user = parseCookies(res.headers.get('set-cookie')).user;
         if (!user) return;
         return await getToken(user, env, protocol, verbose)
