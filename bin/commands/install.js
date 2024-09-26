@@ -2,7 +2,7 @@ import fetch from 'node-fetch';
 import path from 'path';
 import { setupEnv, getAgent } from './env.js';
 import { setupUser } from './login.js';
-import { uploadFiles } from './files.js';
+import { uploadFiles, resolveFilePath } from './files.js';
 
 export function installCommand() {
     return {
@@ -24,9 +24,8 @@ export function installCommand() {
 async function handleInstall(argv) {
     let env = await setupEnv(argv);
     let user = await setupUser(argv, env);
-    let resolvedPath = path.resolve(argv.filePath)
-    await uploadFiles(env, user, [resolvedPath], 'System/AddIns/Local');
-    await installAddin(env, user, resolvedPath)
+    await uploadFiles(env, user, [ argv.filePath ], 'System/AddIns/Local', false, true);
+    await installAddin(env, user, resolveFilePath(argv.filePath))
 }
 
 async function installAddin(env, user, resolvedPath) {
@@ -54,5 +53,6 @@ async function installAddin(env, user, resolvedPath) {
     else {
         console.log('Request failed, returned error:')
         console.log(await res.json())
+        process.exit(1);
     }
 }
