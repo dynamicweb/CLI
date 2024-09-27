@@ -112,7 +112,7 @@ async function handleFiles(argv) {
 }
 
 function getFilesInDirectory(dirPath) {
-    return fs.readdirSync(dirPath)
+    return fs.statSync(dirPath).isFile() ? [ dirPath ] : fs.readdirSync(dirPath)
             .map(file => path.join(dirPath, file))
             .filter(file => fs.statSync(file).isFile());
 }
@@ -283,7 +283,7 @@ export function resolveFilePath(filePath) {
         console.log('Could not find any files with the name ' + filePath);
         process.exit(1);
     }
-    return resolvedPath;
+    return path.join(p.dir, resolvedPath);
 }
 
 function wildcardToRegExp(wildcard) {
