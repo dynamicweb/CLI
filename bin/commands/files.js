@@ -290,6 +290,7 @@ function wildcardToRegExp(wildcard) {
     return new RegExp('^' + wildcard
       .replace(/\./g, '\\.')
       .replace(/\*/g, '.*')
+      .replace(/\+/g, '.+')
       .replace(/\?/g, '.')
       + '$');
 }
