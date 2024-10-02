@@ -54,16 +54,25 @@ async function getProperties(argv) {
     })
     if (res.ok) {
         let body = await res.json()
-        return body.model.propertyNames
+        if (body.model.properties.groups === undefined) {
+            console.log('Unable to fetch query parameters');
+            process.exit(1);
+        }
+        return body.model.properties.groups.filter(g => g.name === 'Properties')[0].fields.map(field => `${field.name} (${field.typeName})`)
     }
-    console.log(res)
+    console.log('Unable to fetch query parameters');
+    console.log(res);
+    process.exit(1);
 }
 
 async function getQueryParams(argv) {
     let params = {}
     if (argv.interactive) {
         let props = { interactive: { default: true }}
-        Array.from(await getProperties(argv)).forEach(p => props[p] = { type: 'input', prompt: 'if-no-arg'})
+        let properties = await getProperties(argv);
+        console.log('The following properties will be requested:')
+        console.log(properties)
+        Array.from(properties).forEach(p => props[p] = { type: 'input', prompt: 'if-no-arg'})
         await yargsInteractive()
         .interactive(props)
         .then((result) => {
