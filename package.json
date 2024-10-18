@@ -2,7 +2,7 @@
   "name": "@dynamicweb/cli",
   "type": "module",
   "description": "Dynamicweb CLI is a commandline tool for interacting with Dynamicweb 10 solutions.",
-  "version": "1.0.11",
+  "version": "1.0.12",
   "main": "bin/index.js",
   "files": [
     "bin/*"
