@@ -13,6 +13,11 @@ export function installCommand() {
             .positional('filePath', {
                 describe: 'Path to the file to install'
             })
+            .option('queue', {
+                alias: 'q',
+                type: 'boolean',
+                describe: 'Queues the install for next Dynamicweb recycle'
+            })
         },
         handler: (argv) => {
             if (argv.verbose) console.info(`Installing file located at :${argv.filePath}`)
@@ -25,13 +30,14 @@ async function handleInstall(argv) {
     let env = await setupEnv(argv);
     let user = await setupUser(argv, env);
     await uploadFiles(env, user, [ argv.filePath ], 'System/AddIns/Local', false, true);
-    await installAddin(env, user, resolveFilePath(argv.filePath))
+    await installAddin(env, user, resolveFilePath(argv.filePath), argv.queue)
 }
 
-async function installAddin(env, user, resolvedPath) {
+async function installAddin(env, user, resolvedPath, queue) {
     console.log('Installing addin')
     let filename = path.basename(resolvedPath);
     let data = {
+        'Queue': queue,
         'Ids': [
             `${filename.substring(0, filename.lastIndexOf('.')) || filename}|${path.extname(resolvedPath)}`
         ]

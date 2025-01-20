@@ -118,6 +118,7 @@ async function loginInteractive(result, verbose) {
     getConfig().env[result.environment].users[result.username].apiKey = apiKey;
     getConfig().env[result.environment].current = getConfig().env[result.environment].current || {};
     getConfig().env[result.environment].current.user = result.username;
+    console.log("You're now logged in as " + result.username)
     updateConfig();
 }
 
@@ -131,12 +132,11 @@ async function login(username, password, env, protocol, verbose) {
         headers: {
             'Content-Type': 'application/x-www-form-urlencoded'
         },
-        agent: getAgent(protocol)
+        agent: getAgent(protocol),
+        redirect: "manual"
     });
 
-    if (res.ok) {
-        console.log(res)
-        console.log(res.json())
+    if (res.ok || res.status == 302) {
         let user = parseCookies(res.headers.get('set-cookie')).user;
         if (!user) return;
         return await getToken(user, env, protocol, verbose)
