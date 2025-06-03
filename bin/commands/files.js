@@ -1,11 +1,12 @@
 import fetch from 'node-fetch';
 import path from 'path';
 import fs from 'fs';
-import extract from 'extract-zip';
 import FormData from 'form-data';
 import { setupEnv, getAgent } from './env.js';
 import { setupUser } from './login.js';
-import { interactiveConfirm } from '../utils.js';
+import { interactiveConfirm, formatBytes, createThrottledStatusUpdater } from '../utils.js';
+import { downloadWithProgress, getFileNameFromResponse } from '../downloader.js';
+import { extractWithProgress } from '../extractor.js';
 
 export function filesCommand() {
     return {
@@ -38,7 +39,7 @@ export function filesCommand() {
             .option('overwrite', {
                 alias: 'o',
                 type: 'boolean',
-                describe: 'Used with import, will overwrite existing files at destrination if set to true'
+                describe: 'Used with import, will overwrite existing files at destination if set to true'
             })
             .option('createEmpty', {
                 type: 'boolean',
@@ -187,8 +188,7 @@ async function download(env, user, dirPath, outPath, recursive, outname, raw, ia
 
     console.log('Downloading', dirPath === '/.' ? 'Base' : dirPath, 'Recursive=' + recursive);
 
-    let filename;
-    fetch(`${env.protocol}://${env.host}/Admin/Api/${endpoint}`, {
+    const res = await fetch(`${env.protocol}://${env.host}/Admin/Api/${endpoint}`, {
         method: 'POST',
         body: JSON.stringify(data),
         headers: {
@@ -196,33 +196,40 @@ async function download(env, user, dirPath, outPath, recursive, outname, raw, ia
             'Content-Type': 'application/json'
         },
         agent: getAgent(env.protocol)
-    }).then((res) => {
-        const header = res.headers.get('content-disposition');
-        const parts = header?.split(';');
-        if (!parts) {
-            console.log(`No files found in directory '${dirPath}', if you want to download all folders recursively include the -r flag`);
-            return;
-        }
-        filename = parts[1].split('=')[1].replace('+', ' ');
-        if (outname) filename = outname;
-        return res;
-    }).then(async (res) => {
-        if (!filename) return;
-        let filePath = path.resolve(`${path.resolve(outPath)}/${filename}`)
-        const fileStream = fs.createWriteStream(filePath);
-        await new Promise((resolve, reject) => {
-            res.body.pipe(fileStream);
-            res.body.on("error", reject);
-            fileStream.on("finish", resolve);
-        });
-        console.log(`Finished downloading`, dirPath === '/.' ? '.' : dirPath, 'Recursive=' + recursive);
-        if (!raw) {
-            let filenameWithoutExtension = filename.replace('.zip', '')
-            await extract(filePath, { dir: `${path.resolve(outPath)}/${filenameWithoutExtension === 'Base' ? '' : filenameWithoutExtension}` }, function (err) {})
-            fs.unlink(filePath, function(err) {})
-        }
-        return res;
     });
+
+    const filename = outname || getFileNameFromResponse(res);
+    if (!filename) return;
+
+    let filePath = path.resolve(`${path.resolve(outPath)}/${filename}`)
+    let updater = createThrottledStatusUpdater();
+    await downloadWithProgress(res, filePath, {
+        onData: (received) => {
+            updater.update(`Received:\t${formatBytes(received)}`);
+        }
+    });
+    updater.stop();
+
+    console.log(`Finished downloading`, dirPath === '/.' ? '.' : dirPath, 'Recursive=' + recursive);
+
+    if (!raw) {
+        console.log(`\nExtracting ${filename} to ${outPath}`);
+
+        const filenameWithoutExtension = filename.replace('.zip', '');
+        const destinationPath = `${path.resolve(outPath)}/${filenameWithoutExtension === 'Base' ? '' : filenameWithoutExtension}`;
+
+        updater = createThrottledStatusUpdater();
+        await extractWithProgress(filePath, destinationPath, {
+            onEntry: (processedEntries, totalEntries, percent) => {
+                updater.update(`Extracted:\t${processedEntries} of ${totalEntries} files (${percent}%)`);
+            }
+        });
+        updater.stop();
+
+        console.log(`Finished extracting ${filename} to ${outPath}\n`);
+
+        fs.unlink(filePath, function(err) {});
+    }
 }
 
 async function getFilesStructure(env, user, dirPath, recursive, includeFiles) {
