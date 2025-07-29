@@ -5,7 +5,7 @@ import FormData from 'form-data';
 import { setupEnv, getAgent } from './env.js';
 import { setupUser } from './login.js';
 import { interactiveConfirm, formatBytes, createThrottledStatusUpdater } from '../utils.js';
-import { downloadWithProgress, getFileNameFromResponse } from '../downloader.js';
+import { downloadWithProgress, tryGetFileNameFromResponse } from '../downloader.js';
 import { extractWithProgress } from '../extractor.js';
 
 export function filesCommand() {
@@ -198,7 +198,7 @@ async function download(env, user, dirPath, outPath, recursive, outname, raw, ia
         agent: getAgent(env.protocol)
     });
 
-    const filename = outname || getFileNameFromResponse(res);
+    const filename = outname || tryGetFileNameFromResponse(res, dirPath);
     if (!filename) return;
 
     let filePath = path.resolve(`${path.resolve(outPath)}/${filename}`)
