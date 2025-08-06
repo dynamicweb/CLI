@@ -76,14 +76,14 @@ export async function setupUser(argv, env) {
 
     const updatedConfig = getConfig();
     const updatedEnv = updatedConfig.env[updatedConfig.current.env];
-    const finalUser = updatedEnv.users[updatedEnv.current.user];
+    const user = updatedEnv.users[updatedEnv.current.user];
 
-    if (!finalUser?.apiKey) {
+    if (!user?.apiKey) {
         console.error("Login seemed successful, but failed to retrieve user data. Please try again.");
         process.exit();
     }
 
-    return finalUser;
+    return user;
 }
 
 async function handleLogin(argv) {
@@ -437,7 +437,7 @@ async function loginWithCode({ username, env, protocol, verbose }) {
             console.info(loginRequest);
         }
 
-        console.log(`Login with code attempt failed (request to '${loginUrl}') for user '${username}'.`);
+        console.log(`Login attempt failed with username ${username}, please verify its a valid user in your Dynamicweb solution`);
         return;
     }
 
@@ -474,7 +474,7 @@ async function loginWithLink({ username, env, protocol, verbose }) {
     });
 
     if (!linkRequest.ok) {
-        console.error(`Login with link attempt failed (request to '${loginUrl}') for user '${username}'.`);
+        console.error(`Login attempt failed with username ${username}, please verify its a valid user in your Dynamicweb solution`);
         if (verbose) {
             console.info(linkRequest);
         }
