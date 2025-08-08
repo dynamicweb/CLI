@@ -63,6 +63,18 @@ export function filesCommand() {
                 type: 'boolean',
                 describe: 'Includes export of log and cache folders, NOT RECOMMENDED'
             })
+            .option('asFile', {
+                type: 'boolean',
+                alias: 'af',
+                describe: 'Forces the command to treat the path as a single file, even if it has no extension.',
+                conflicts: 'asDirectory'
+            })
+            .option('asDirectory', {
+                type: 'boolean',
+                alias: 'ad',
+                describe: 'Forces the command to treat the path as a directory, even if its name contains a dot.',
+                conflicts: 'asFile'
+            })
         },
         handler: (argv) => {
             if (argv.verbose) console.info(`Listing directory at: ${argv.dirPath}`)
@@ -85,7 +97,19 @@ async function handleFiles(argv) {
 
     if (argv.export) {
         if (argv.dirPath) {
-            await download(env, user, argv.dirPath, argv.outPath, true, null, argv.raw, argv.iamstupid, []);
+            
+            const isFile = argv.asFile || argv.asDirectory
+                ? argv.asFile
+                : path.extname(argv.dirPath) !== '';                
+
+            if (isFile) {
+                let parentDirectory = path.dirname(argv.dirPath);              
+                parentDirectory = parentDirectory === '.' ? '/' : parentDirectory;
+                
+                await download(env, user, parentDirectory, argv.outPath, false, null, true, argv.iamstupid, [argv.dirPath], true);
+            } else {
+                await download(env, user, argv.dirPath, argv.outPath, true, null, argv.raw, argv.iamstupid, [], false);
+            }
         } else {
             await interactiveConfirm('Are you sure you want a full export of files?', async () => {
                 console.log('Full export is starting')
@@ -93,9 +117,9 @@ async function handleFiles(argv) {
                 let dirs = filesStructure.directories;
                 for (let id = 0; id < dirs.length; id++) {
                     const dir = dirs[id];
-                    await download(env, user, dir.name, argv.outPath, true, null, argv.raw, argv.iamstupid, []);
+                    await download(env, user, dir.name, argv.outPath, true, null, argv.raw, argv.iamstupid, [], false);
                 }
-                await download(env, user, '/.', argv.outPath, false, 'Base.zip', argv.raw, argv.iamstupid, Array.from(filesStructure.files.data, f => f.name));
+                await download(env, user, '/.', argv.outPath, false, 'Base.zip', argv.raw, argv.iamstupid, Array.from(filesStructure.files.data, f => f.name), false);
                 if (argv.raw) console.log('The files in the base "files" folder is in Base.zip, each directory in "files" is in its own zip')
             })
         }
@@ -165,8 +189,7 @@ function resolveTree(dirs, indentLevel, parentHasFiles) {
     }
 }
 
-async function download(env, user, dirPath, outPath, recursive, outname, raw, iamstupid, fileNames) {
-    let endpoint;
+async function download(env, user, dirPath, outPath, recursive, outname, raw, iamstupid, fileNames, singleFileMode) {
     let excludeDirectories = '';
     if (!iamstupid) {
         excludeDirectories = 'system/log';
@@ -174,19 +197,10 @@ async function download(env, user, dirPath, outPath, recursive, outname, raw, ia
             return;
         }
     }
-    let data = {
-        'DirectoryPath': dirPath ?? '/',
-        'ExcludeDirectories': [ excludeDirectories ],
-    }
 
-    if (recursive) {
-        endpoint = 'DirectoryDownload';
-    } else {
-        endpoint = 'FileDownload'
-        data['Ids'] = fileNames
-    }
+    const { endpoint, data } = prepareDownloadCommandData(dirPath, excludeDirectories, fileNames, recursive, singleFileMode);
 
-    console.log('Downloading', dirPath === '/.' ? 'Base' : dirPath, 'Recursive=' + recursive);
+    displayDownloadMessage(dirPath, fileNames, recursive, singleFileMode);
 
     const res = await fetch(`${env.protocol}://${env.host}/Admin/Api/${endpoint}`, {
         method: 'POST',
@@ -201,35 +215,78 @@ async function download(env, user, dirPath, outPath, recursive, outname, raw, ia
     const filename = outname || tryGetFileNameFromResponse(res, dirPath);
     if (!filename) return;
 
-    let filePath = path.resolve(`${path.resolve(outPath)}/${filename}`)
-    let updater = createThrottledStatusUpdater();
+    const filePath = path.resolve(`${path.resolve(outPath)}/${filename}`)
+    const updater = createThrottledStatusUpdater();
+
     await downloadWithProgress(res, filePath, {
         onData: (received) => {
             updater.update(`Received:\t${formatBytes(received)}`);
         }
     });
+
     updater.stop();
 
-    console.log(`Finished downloading`, dirPath === '/.' ? '.' : dirPath, 'Recursive=' + recursive);
-
-    if (!raw) {
-        console.log(`\nExtracting ${filename} to ${outPath}`);
-
-        const filenameWithoutExtension = filename.replace('.zip', '');
-        const destinationPath = `${path.resolve(outPath)}/${filenameWithoutExtension === 'Base' ? '' : filenameWithoutExtension}`;
-
-        updater = createThrottledStatusUpdater();
-        await extractWithProgress(filePath, destinationPath, {
-            onEntry: (processedEntries, totalEntries, percent) => {
-                updater.update(`Extracted:\t${processedEntries} of ${totalEntries} files (${percent}%)`);
-            }
-        });
-        updater.stop();
-
-        console.log(`Finished extracting ${filename} to ${outPath}\n`);
-
-        fs.unlink(filePath, function(err) {});
+    if (singleFileMode) {
+        console.log(`Successfully downloaded: ${filename}`);
+    } else {
+        console.log(`Finished downloading`, dirPath === '/.' ? '.' : dirPath, 'Recursive=' + recursive);
     }
+
+    await extractArchive(filename, filePath, outPath, raw);
+}
+
+function prepareDownloadCommandData(directoryPath, excludeDirectories, fileNames, recursive, singleFileMode) {
+    const data = {
+        'DirectoryPath': directoryPath ?? '/',
+        'ExcludeDirectories': [excludeDirectories],
+    };
+
+    if (recursive && !singleFileMode) {
+        return { endpoint: 'DirectoryDownload', data };
+    }
+
+    data['Ids'] = fileNames;
+    return { endpoint: 'FileDownload', data };
+}
+
+function displayDownloadMessage(directoryPath, fileNames, recursive, singleFileMode) {
+    if (singleFileMode) {
+        const fileName = path.basename(fileNames[0] || 'unknown');
+        console.log('Downloading file: ' + fileName);
+
+        return;
+    }
+
+    const directoryPathDisplayName = directoryPath === '/.'
+        ? 'Base'
+        : directoryPath;
+
+    console.log('Downloading', directoryPathDisplayName, 'Recursive=' + recursive);
+}
+
+async function extractArchive(filename, filePath, outPath, raw) {
+    if (raw) {
+        return;
+    }
+
+    console.log(`\nExtracting ${filename} to ${outPath}`);
+    let destinationFilename = filename.replace('.zip', '');
+    if (destinationFilename === 'Base')
+        destinationFilename = '';
+
+    const destinationPath = `${path.resolve(outPath)}/${destinationFilename}`;
+    const updater = createThrottledStatusUpdater();
+
+    await extractWithProgress(filePath, destinationPath, {
+        onEntry: (processedEntries, totalEntries, percent) => {
+            updater.update(`Extracted:\t${processedEntries} of ${totalEntries} files (${percent}%)`);
+        }
+    });
+
+    updater.stop();
+    console.log(`Finished extracting ${filename} to ${outPath}\n`);
+
+    fs.unlink(filePath, function(err) {});
 }
 
 async function getFilesStructure(env, user, dirPath, recursive, includeFiles) {
