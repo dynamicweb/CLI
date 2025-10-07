@@ -86,6 +86,26 @@ Exporting all templates from current environment to local solution
 Listing the system files structure of the current environment
 > $ dw files system -lr
 
+### Files Source Type Detection
+By default, the `dw files` command automatically detects the source type based on the \<dirPath\>:
+If the path contains a file extension (e.g., 'templates/Translations.xml'), it is treated as a file.
+Otherwise, it is treated as a directory.
+In cases where this detection is incorrect, you can force the type using these flags:
+
+- `-ad` `--asDirectory`  Forces the command to treat the path as a directory, even if its name contains a dot.
+- `-af` `--asFile`       Forces the command to treat the path as a single file, even if it has no extension. 
+
+#### Examples
+
+Exporting single file from current environment to local solution
+> $ dw files templates/Translations.xml ./templates -e
+
+Exporting a directory that looks like a file
+> $ dw files templates/templates.v1 ./templates -e -ad
+
+Exporting a file that has no extension
+> $ dw files templates/testfile ./templates -e -af
+
 ### Swift
 > $ dw swift \<outPath\>
 
