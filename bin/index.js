@@ -13,6 +13,7 @@ import { queryCommand } from './commands/query.js';
 import { commandCommand } from './commands/command.js';
 
 setupConfig();
+showGitBashRelativePathWarning();
 
 yargs(hideBin(process.argv))
     .scriptName('dw')
@@ -57,5 +58,16 @@ function baseCommand() {
             console.log(`Protocol: ${getConfig()?.env[getConfig()?.current?.env]?.protocol}`)
             console.log(`Host: ${getConfig()?.env[getConfig()?.current?.env]?.host}`)
         }
+    }
+}
+
+function showGitBashRelativePathWarning() {
+    const isGitBash = !!process.env.MSYSTEM;
+    const pathConversionDisabled = process.env.MSYS_NO_PATHCONV === '1';
+
+    if (isGitBash && !pathConversionDisabled) {
+        console.warn('You appear to have path conversion turned on in your shell.');
+        console.warn('If you are using relative paths, this may interfere.');
+        console.warn('Please see doc.dynamicweb.dev for more information.');
     }
 }
