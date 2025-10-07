@@ -177,7 +177,9 @@ If you're using Git Bash, you may encounter issues with path conversion that can
 Git Bash automatically converts relative paths to absolute paths, which can cause problems. 
 You'll see a warning message if the conversion setting is not disabled:
 
-"You appear to have path conversion turned on in your shell. If you are using relative paths, this may interfere. Please see doc.dynamicweb.dev for more information."
+"You appear to have path conversion turned on in your shell. 
+If you are using relative paths, this may interfere. 
+Please see https://doc.dynamicweb.dev/documentation/fundamentals/code/CLI.html for more information."
 
 ### Solution
 To resolve this issue, disable path conversion by setting the `MSYS_NO_PATHCONV` environment variable (current session only):
@@ -192,10 +194,9 @@ To resolve this issue, disable path conversion by setting the `MSYS_NO_PATHCONV`
 ### Alternative Solutions
 If you prefer not to disable path conversion globally, you can:
 
-1. Prefix problematic paths with `//` to prevent conversion for specific commands.
+1. Prefix relative paths with `./` instead of just `/` to prevent conversion for specific commands.
 2. Use PowerShell or CMD instead of Git Bash.
 
 #### Examples
 
-> $ dw files -iro ./ //TestFolder --host \<host\> --apiKey \<apiKey\>
-
+> $ dw files -iro ./ ./TestFolder --host \<host\> --apiKey \<apiKey\>
