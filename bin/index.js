@@ -68,6 +68,6 @@ function showGitBashRelativePathWarning() {
     if (isGitBash && !pathConversionDisabled) {
         console.warn('You appear to have path conversion turned on in your shell.');
         console.warn('If you are using relative paths, this may interfere.');
-        console.warn('Please see doc.dynamicweb.dev for more information.');
+        console.warn('Please see https://doc.dynamicweb.dev/documentation/fundamentals/code/CLI.html for more information.');
     }
 }
