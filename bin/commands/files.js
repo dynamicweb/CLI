@@ -308,18 +308,38 @@ async function getFilesStructure(env, user, dirPath, recursive, includeFiles) {
 
 export async function uploadFiles(env, user, localFilePaths, destinationPath, createEmpty = false, overwrite = false) {
     console.log('Uploading files')
-    let form = new FormData();
+
+    const chunkSize = 1000;
+    const chunks = [];
+
+    for (let i = 0; i < localFilePaths.length; i += chunkSize) {
+        chunks.push(localFilePaths.slice(i, i + chunkSize));
+    }
+
+    for (let i = 0; i < chunks.length; i++) {
+        console.log(`Uploading chunk ${i + 1} of ${chunks.length}`);
+
+        const chunk = chunks[i];
+        await uploadChunk(env, user, chunk, destinationPath, createEmpty, overwrite);
+
+        console.log(`Finished uploading chunk ${i + 1} of ${chunks.length}`);
+    }
+
+    console.log(`Finished uploading files. Total files: ${localFilePaths.length}, total chunks: ${chunks.length}`);
+}
+
+async function uploadChunk(env, user, filePathsChunk, destinationPath, createEmpty, overwrite) {
+    const form = new FormData();
     form.append('path', destinationPath);
     form.append('skipExistingFiles', String(!overwrite));
     form.append('allowOverwrite', String(overwrite));
-    localFilePaths.forEach((localPath, index) => {
-        let fileToUpload = resolveFilePath(localPath)
-        console.log(fileToUpload)
-        if (fileToUpload === undefined)
-            return;
+    
+    filePathsChunk.forEach(fileToUpload => {
+        console.log(`${fileToUpload}`)
         form.append('files', fs.createReadStream(path.resolve(fileToUpload)));
     });
-    let res = await fetch(`${env.protocol}://${env.host}/Admin/Api/Upload?` + new URLSearchParams({"createEmptyFiles": createEmpty, "createMissingDirectories": true}), {
+
+    const res = await fetch(`${env.protocol}://${env.host}/Admin/Api/Upload?` + new URLSearchParams({"createEmptyFiles": createEmpty, "createMissingDirectories": true}), {
         method: 'POST',
         body: form,
         headers: {
@@ -327,13 +347,13 @@ export async function uploadFiles(env, user, localFilePaths, destinationPath, cr
         },
         agent: getAgent(env.protocol)
     });
+    
     if (res.ok) {
         console.log(await res.json())
-        console.log(`Files uploaded`)
     }
     else {
         console.log(res)
-        console.log(res.json())
+        console.log(await res.json())
         process.exit(1);
     }
 }
