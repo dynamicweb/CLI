@@ -4,12 +4,19 @@ import { Agent as HttpsAgent } from 'https';
 import yargsInteractive from 'yargs-interactive';
 
 const httpAgent = new HttpAgent({
-    rejectUnauthorized: false
-})
+    keepAlive: true,
+    maxSockets,
+    maxFreeSockets: 8,
+    keepAliveMsecs: 10_000
+});
 
 const httpsAgent = new HttpsAgent({
+    keepAlive: true,
+    maxSockets,
+    maxFreeSockets: 8,
+    keepAliveMsecs: 10_000,
     rejectUnauthorized: false
-})
+});
 
 export function getAgent(protocol) {
     return protocol === 'http' ? httpAgent : httpsAgent;
