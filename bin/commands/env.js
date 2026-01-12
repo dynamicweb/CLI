@@ -5,15 +5,15 @@ import yargsInteractive from 'yargs-interactive';
 
 const httpAgent = new HttpAgent({
     keepAlive: true,
-    maxSockets,
-    maxFreeSockets: 8,
+    maxSockets: 8,
+    maxFreeSockets: 4,
     keepAliveMsecs: 10_000
 });
 
 const httpsAgent = new HttpsAgent({
     keepAlive: true,
-    maxSockets,
-    maxFreeSockets: 8,
+    maxSockets: 8,
+    maxFreeSockets: 4,
     keepAliveMsecs: 10_000,
     rejectUnauthorized: false
 });
