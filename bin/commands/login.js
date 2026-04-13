@@ -1,7 +1,7 @@
 import fetch from 'node-fetch';
 import { interactiveEnv, getAgent } from './env.js'
 import { updateConfig, getConfig } from './config.js';
-import yargsInteractive from 'yargs-interactive';
+import { input, password } from '@inquirer/prompts';
 
 export function loginCommand() {
     return {
@@ -26,8 +26,8 @@ export async function setupUser(argv, env) {
         askLogin = false;
     }
 
-    if (!user.apiKey && env.users) {
-        user = env.users[argv.user] || env.users[env.current.user];
+    if (!user.apiKey && env.users && (argv.user || env.current?.user)) {
+        user = env.users[argv.user] || env.users[env.current?.user];
         askLogin = false;
     }
 
@@ -60,7 +60,7 @@ export async function setupUser(argv, env) {
 }
 
 async function handleLogin(argv) {
-    argv.user ? changeUser(argv) : interactiveLogin(argv, {
+    argv.user ? changeUser(argv) : await interactiveLogin(argv, {
         environment: {
             type: 'input',
             default: getConfig()?.current?.env || 'dev',
@@ -80,30 +80,40 @@ async function handleLogin(argv) {
 
 export async function interactiveLogin(argv, options) {
     if (argv.verbose) console.info('Now logging in')
-    await yargsInteractive()
-        .interactive(options)
-        .then(async (result) => {
-            if (!getConfig().env || !getConfig().env[result.environment] || !getConfig().env[result.environment].host || !getConfig().env[result.environment].protocol) {
-                if (!argv.host)
-                    console.log(`The environment specified is missing parameters, please specify them`)
-                await interactiveEnv(argv, {
-                    environment: {
-                        type: 'input',
-                        default: result.environment,
-                        prompt: 'never'
-                    },
-                    host: {
-                        describe: 'Enter your host including protocol, i.e "https://yourHost.com":',
-                        type: 'input',
-                        prompt: 'if-no-arg'
-                    },
-                    interactive: {
-                        default: true
-                    }
-                })
-            }
-            await loginInteractive(result, argv.verbose);
+    const result = {};
+    for (const [key, config] of Object.entries(options)) {
+        if (key === 'interactive') continue;
+        if (config.prompt === 'never') {
+            result[key] = config.default;
+            continue;
+        }
+        const promptFn = config.type === 'password' ? password : input;
+        result[key] = await promptFn({
+            message: config.describe || key,
+            default: config.default,
+            mask: config.type === 'password' ? '*' : undefined
         });
+    }
+    if (!getConfig().env || !getConfig().env[result.environment] || !getConfig().env[result.environment].host || !getConfig().env[result.environment].protocol) {
+        if (!argv.host)
+            console.log(`The environment specified is missing parameters, please specify them`)
+        await interactiveEnv(argv, {
+            environment: {
+                type: 'input',
+                default: result.environment,
+                prompt: 'never'
+            },
+            host: {
+                describe: 'Enter your host including protocol, i.e "https://yourHost.com":',
+                type: 'input',
+                prompt: 'always'
+            },
+            interactive: {
+                default: true
+            }
+        })
+    }
+    await loginInteractive(result, argv.verbose);
 }
 
 async function loginInteractive(result, verbose) {

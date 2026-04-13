@@ -114,6 +114,10 @@ export async function interactiveEnv(argv, options) {
         });
     }
     getConfig().env = getConfig().env || {};
+    if (!result.environment || !result.environment.trim()) {
+        console.log('Environment name cannot be empty');
+        return;
+    }
     getConfig().env[result.environment] = getConfig().env[result.environment] || {};
     if (result.host) {
         const hostSplit = result.host.split("://");

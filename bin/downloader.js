@@ -15,7 +15,7 @@ export function getFileNameFromResponse(res, dirPath) {
         throw new Error(msg);
     }
 
-    return parts[1].split('=')[1].replace('+', ' ');
+    return parts[1].split('=')[1].replaceAll('+', ' ');
 }
 
 /**

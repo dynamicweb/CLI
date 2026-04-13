@@ -76,9 +76,9 @@ export function filesCommand() {
                 conflicts: 'asFile'
             })
         },
-        handler: (argv) => {
+        handler: async (argv) => {
             if (argv.verbose) console.info(`Listing directory at: ${argv.dirPath}`)
-            handleFiles(argv)
+            await handleFiles(argv)
         }
     }
 }
@@ -301,7 +301,7 @@ async function getFilesStructure(env, user, dirPath, recursive, includeFiles) {
         return await res.json();
     } else {
         console.log(res);
-        console.log(res.json());
+        console.log(await res.json());
         process.exit(1);
     }
 }
@@ -372,6 +372,7 @@ export function resolveFilePath(filePath) {
 
 
 function wildcardToRegExp(wildcard) {
-    return new RegExp('^' + wildcard.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '$');
+    const escaped = wildcard.replace(/[.+?^${}()|[\]\\]/g, '\\$&');
+    return new RegExp('^' + escaped.replace(/\*/g, '.*') + '$');
 }
 

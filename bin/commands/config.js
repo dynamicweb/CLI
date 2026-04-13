@@ -33,7 +33,7 @@ export function getConfig() {
 export function handleConfig(argv) {
     Object.keys(argv).forEach(a => {
         if (a != '_' && a != '$0') {
-            resolveConfig(a, argv[a], config[a]);
+            localConfig[a] = resolveConfig(a, argv[a], localConfig[a] || {});
             updateConfig();
         }
     })

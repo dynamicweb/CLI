@@ -4,7 +4,7 @@ import fs from 'fs';
 import { setupEnv, getAgent } from './env.js';
 import { setupUser } from './login.js';
 
-const exclude = ['_', '$0', 'command', 'list', 'json']
+const exclude = ['_', '$0', 'command', 'list', 'json', 'verbose', 'v', 'host', 'protocol', 'apiKey', 'env']
 
 export function commandCommand() {
     return {
@@ -23,9 +23,9 @@ export function commandCommand() {
                 describe: 'Lists all the properties for the command, currently not working'
             })
         },
-        handler: (argv) => {
+        handler: async (argv) => {
             if (argv.verbose) console.info(`Running command ${argv.command}`)
-            handleCommand(argv)
+            await handleCommand(argv)
         }
     }
 }

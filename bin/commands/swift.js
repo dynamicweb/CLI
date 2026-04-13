@@ -1,4 +1,4 @@
-import { exec } from 'child_process';
+import { execFile } from 'child_process';
 import { Agent } from 'https';
 import path from 'path';
 import fetch from 'node-fetch';
@@ -31,9 +31,9 @@ export function swiftCommand() {
             })
             .option('force', {})
         },
-        handler: (argv) => {
+        handler: async (argv) => {
             if (argv.verbose) console.info(`Downloading latest swift to :${argv.outPath}`)
-            handleSwift(argv)
+            await handleSwift(argv)
         }
     }
 }
@@ -42,14 +42,14 @@ async function handleSwift(argv) {
     if (argv.list) {
         console.log(await getVersions(false))
     } else {
-        let degitCommand
-        if (argv.nightly) {
-            degitCommand = `npx degit dynamicweb/swift ${argv.force ? '--force' : ''} "${path.resolve(argv.outPath)}"`
-        } else {
-            degitCommand = `npx degit dynamicweb/swift#${argv.tag ? argv.tag : await getVersions(true)} ${argv.force ? '--force' : ''} "${path.resolve(argv.outPath)}"`
-        }
-        if (argv.verbose) console.info(`Executing command: ${degitCommand}`)
-        exec(degitCommand, (error, stdout, stderr) => {
+        const repo = argv.nightly
+            ? 'dynamicweb/swift'
+            : `dynamicweb/swift#${argv.tag ? argv.tag : await getVersions(true)}`;
+        const args = ['degit', repo];
+        if (argv.force) args.push('--force');
+        args.push(path.resolve(argv.outPath));
+        if (argv.verbose) console.info(`Executing: npx ${args.join(' ')}`)
+        execFile('npx', args, (error, stdout, stderr) => {
             if (error) {
                 console.log(`error: ${error.message}`);
                 return;
