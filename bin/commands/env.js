@@ -53,7 +53,7 @@ export function envCommand() {
                 await handleEnv(argv, output);
             } catch (err) {
                 output.fail(err);
-                process.exit(1);
+                process.exitCode = 1;
             } finally {
                 output.finish();
             }

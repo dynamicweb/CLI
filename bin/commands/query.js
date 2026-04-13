@@ -39,7 +39,7 @@ export function queryCommand() {
                 if (!output.json) {
                     console.error(err.stack || err.message || String(err));
                 }
-                process.exit(1);
+                process.exitCode = 1;
             } finally {
                 output.finish();
             }

@@ -122,7 +122,7 @@ export function filesCommand() {
                 await handleFiles(argv, output);
             } catch (err) {
                 output.fail(err);
-                process.exit(1);
+                process.exitCode = 1;
             } finally {
                 output.finish();
             }
@@ -161,7 +161,7 @@ async function handleFiles(argv, output) {
                 await download(env, user, argv.dirPath, argv.outPath, true, null, argv.raw, argv.dangerouslyIncludeLogsAndCache, [], false, output);
             }
         } else {
-            await interactiveConfirm('Are you sure you want a full export of files?', async () => {
+            const fullExport = async () => {
                 output.log('Full export is starting');
                 let filesStructure = (await getFilesStructure(env, user, '/', false, true)).model;
                 let dirs = filesStructure.directories;
@@ -171,7 +171,13 @@ async function handleFiles(argv, output) {
                 }
                 await download(env, user, '/.', argv.outPath, false, 'Base.zip', argv.raw, argv.dangerouslyIncludeLogsAndCache, Array.from(filesStructure.files.data, f => f.name), false, output);
                 if (argv.raw) output.log('The files in the base "files" folder is in Base.zip, each directory in "files" is in its own zip');
-            })
+            };
+
+            if (output.json) {
+                await fullExport();
+            } else {
+                await interactiveConfirm('Are you sure you want a full export of files?', fullExport);
+            }
         }
     } else if (argv.import) {
         if (argv.dirPath && argv.outPath) {
@@ -600,8 +606,7 @@ export function resolveFilePath(filePath) {
     let resolvedPath = fs.readdirSync(p.dir).filter((allFilesPaths) => allFilesPaths.match(regex) !== null)[0]
     if (resolvedPath === undefined)
     {
-        console.log('Could not find any files with the name ' + filePath);
-        process.exit(1);
+        throw createCommandError(`Could not find any files with the name ${filePath}`, 1);
     }
     return path.join(p.dir, resolvedPath);
 }
