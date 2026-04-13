@@ -106,9 +106,9 @@ async function handleFiles(argv) {
                 let parentDirectory = path.dirname(argv.dirPath);              
                 parentDirectory = parentDirectory === '.' ? '/' : parentDirectory;
                 
-                await download(env, user, parentDirectory, argv.outPath, false, null, true, argv.iamstupid, [argv.dirPath], true);
+                await download(env, user, parentDirectory, argv.outPath, false, null, true, argv.iamstupid, [argv.dirPath], true, argv.verbose);
             } else {
-                await download(env, user, argv.dirPath, argv.outPath, true, null, argv.raw, argv.iamstupid, [], false);
+                await download(env, user, argv.dirPath, argv.outPath, true, null, argv.raw, argv.iamstupid, [], false, argv.verbose);
             }
         } else {
             await interactiveConfirm('Are you sure you want a full export of files?', async () => {
@@ -117,9 +117,9 @@ async function handleFiles(argv) {
                 let dirs = filesStructure.directories;
                 for (let id = 0; id < dirs.length; id++) {
                     const dir = dirs[id];
-                    await download(env, user, dir.name, argv.outPath, true, null, argv.raw, argv.iamstupid, [], false);
+                    await download(env, user, dir.name, argv.outPath, true, null, argv.raw, argv.iamstupid, [], false, argv.verbose);
                 }
-                await download(env, user, '/.', argv.outPath, false, 'Base.zip', argv.raw, argv.iamstupid, Array.from(filesStructure.files.data, f => f.name), false);
+                await download(env, user, '/.', argv.outPath, false, 'Base.zip', argv.raw, argv.iamstupid, Array.from(filesStructure.files.data, f => f.name), false, argv.verbose);
                 if (argv.raw) console.log('The files in the base "files" folder is in Base.zip, each directory in "files" is in its own zip')
             })
         }
@@ -189,7 +189,7 @@ function resolveTree(dirs, indentLevel, parentHasFiles) {
     }
 }
 
-async function download(env, user, dirPath, outPath, recursive, outname, raw, iamstupid, fileNames, singleFileMode) {
+async function download(env, user, dirPath, outPath, recursive, outname, raw, iamstupid, fileNames, singleFileMode, verbose = false) {
     let excludeDirectories = '';
     if (!iamstupid) {
         excludeDirectories = 'system/log';
@@ -212,7 +212,7 @@ async function download(env, user, dirPath, outPath, recursive, outname, raw, ia
         agent: getAgent(env.protocol)
     });
 
-    const filename = outname || tryGetFileNameFromResponse(res, dirPath);
+    const filename = outname || tryGetFileNameFromResponse(res, dirPath, verbose);
     if (!filename) return;
 
     const filePath = path.resolve(`${path.resolve(outPath)}/${filename}`)
@@ -375,4 +375,3 @@ function wildcardToRegExp(wildcard) {
     const escaped = wildcard.replace(/[.+?^${}()|[\]\\]/g, '\\$&');
     return new RegExp('^' + escaped.replace(/\*/g, '.*') + '$');
 }
-

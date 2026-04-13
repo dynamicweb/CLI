@@ -9,7 +9,7 @@ import fs from 'fs';
 export function getFileNameFromResponse(res, dirPath) {
     const header = res.headers.get('content-disposition');
     const parts = header?.split(';');
-    
+
     if (!parts) {
         const msg = `No files found in directory '${dirPath}', if you want to download all folders recursively include the -r flag`;
         throw new Error(msg);
@@ -24,13 +24,16 @@ export function getFileNameFromResponse(res, dirPath) {
  *
  * @param {Object} res - The HTTP response object to extract the file name from.
  * @param {string} dirPath - The directory path to use for file name resolution.
+ * @param {boolean} verbose - Whether to log missing download information.
  * @returns {string|null} The extracted file name, or null if extraction fails.
  */
-export function tryGetFileNameFromResponse(res, dirPath) {
+export function tryGetFileNameFromResponse(res, dirPath, verbose = false) {
     try {
         return getFileNameFromResponse(res, dirPath);
     } catch (err) {
-        console.error(err.message);
+        if (verbose) {
+            console.log(err.message);
+        }
         return null;
     }
 }
@@ -56,7 +59,7 @@ export function downloadWithProgress(res, filePath, options) {
         res.body.on("data", chunk => {
             const isFirstChunk = receivedBytes === 0;
             const elapsed = Date.now() - startTime;
-            
+
             receivedBytes += chunk.length;
 
             if (options?.onData) {
