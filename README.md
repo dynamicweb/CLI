@@ -48,7 +48,7 @@ Set up an environment and log in with a user:
 ```sh
 dw env dev
 dw login
-dw
+dw          # shows current environment, user, protocol, and host
 ```
 
 Run a query:

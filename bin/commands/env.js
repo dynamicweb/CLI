@@ -51,17 +51,17 @@ export function envCommand() {
 
             try {
                 await handleEnv(argv, output);
-                output.finish();
             } catch (err) {
                 output.fail(err);
-                output.finish();
                 process.exit(1);
+            } finally {
+                output.finish();
             }
         }
     }
 }
 
-export async function setupEnv(argv) {
+export async function setupEnv(argv, output = null) {
     let env = {};
     let askEnv = true;
 
@@ -95,7 +95,7 @@ export async function setupEnv(argv) {
             interactive: {
                 default: true
             }
-        })
+        }, output)
         env = getConfig().env[getConfig()?.current?.env];
     }
 
@@ -231,7 +231,7 @@ async function changeEnv(argv, output) {
 }
 
 export function isJsonOutput(argv) {
-    return argv?.json === true || argv?.output === 'json';
+    return argv?.output === 'json';
 }
 
 export function createCommandError(message, status = 1, details = null) {

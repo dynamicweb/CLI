@@ -33,7 +33,7 @@ yargs(hideBin(process.argv))
         description: 'Run with verbose logging'
     })
     .option('protocol', {
-        description: 'Allows setting the protocol used, only used together with --host, defaulting to https'
+        description: 'Set the protocol used with --host (defaults to https)'
     })
     .option('host', {
         description: 'Allows setting the host used, only allowed if an --apiKey or OAuth client credentials are specified'
@@ -65,12 +65,17 @@ function baseCommand() {
         command: '$0',
         describe: 'Shows the current env and user being used',
         handler: () => {
-            if (Object.keys(getConfig()).length === 0) {
+            const cfg = getConfig();
+            if (Object.keys(cfg).length === 0) {
                 console.log('To login to a solution use `dw login`')
                 return;
             }
-            const cfg = getConfig();
             const currentEnv = cfg?.env?.[cfg?.current?.env];
+            if (!currentEnv) {
+                console.log(`Environment '${cfg?.current?.env}' is not configured.`);
+                console.log('To login to a solution use `dw login`');
+                return;
+            }
             const authType = currentEnv?.current?.authType;
 
             console.log(`Environment: ${cfg?.current?.env}`);
@@ -79,8 +84,8 @@ function baseCommand() {
             } else if (currentEnv?.current?.user) {
                 console.log(`User: ${currentEnv.current.user}`);
             }
-            console.log(`Protocol: ${currentEnv?.protocol}`);
-            console.log(`Host: ${currentEnv?.host}`);
+            console.log(`Protocol: ${currentEnv.protocol}`);
+            console.log(`Host: ${currentEnv.host}`);
         }
     }
 }

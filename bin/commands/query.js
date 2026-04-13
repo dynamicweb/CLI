@@ -24,7 +24,8 @@ export function queryCommand() {
                 })
                 .option('output', {
                     choices: ['json'],
-                    describe: 'Outputs a single JSON response for automation-friendly parsing'
+                    describe: 'Outputs a single JSON response for automation-friendly parsing',
+                    conflicts: 'interactive'
                 })
         },
         handler: async (argv) => {
@@ -33,35 +34,35 @@ export function queryCommand() {
             try {
                 output.verboseLog(`Running query ${argv.query}`);
                 await handleQuery(argv, output);
-                output.finish();
             } catch (err) {
                 output.fail(err);
                 if (!output.json) {
                     console.error(err.stack || err.message || String(err));
                 }
-                output.finish();
                 process.exit(1);
+            } finally {
+                output.finish();
             }
         }
     }
 }
 
 async function handleQuery(argv, output) {
-    let env = await setupEnv(argv);
+    let env = await setupEnv(argv, output);
     let user = await setupUser(argv, env);
     if (argv.list) {
         const properties = await getProperties(env, user, argv.query);
         output.addData(properties);
         output.log(properties);
     } else {
-        let response = await runQuery(env, user, argv.query, await getQueryParams(env, user, argv));
+        let response = await runQuery(env, user, argv.query, await getQueryParams(env, user, argv, output));
         output.addData(response);
         output.log(response);
     }
 }
 
 async function getProperties(env, user, query) {
-    let res = await fetch(`${env.protocol}://${env.host}/Admin/Api/QueryByName?name=${query}`, {
+    let res = await fetch(`${env.protocol}://${env.host}/Admin/Api/QueryByName?name=${encodeURIComponent(query)}`, {
         method: 'GET',
         headers: {
             'Authorization': `Bearer ${user.apiKey}`
@@ -79,12 +80,12 @@ async function getProperties(env, user, query) {
     throw createCommandError('Unable to fetch query parameters.', res.status, await parseJsonSafe(res));
 }
 
-async function getQueryParams(env, user, argv) {
+async function getQueryParams(env, user, argv, output) {
     let params = {}
     if (argv.interactive) {
         let properties = await getProperties(env, user, argv.query);
-        console.log('The following properties will be requested:')
-        console.log(properties)
+        output.log('The following properties will be requested:')
+        output.log(properties)
         for (const p of properties) {
             const value = await input({ message: p });
             if (value) {
