@@ -802,7 +802,7 @@ dw swift [outPath] [options]
 
 ```sh
 dw swift -l                            # list available versions
-dw swift . --tag v1.25.1 --force       # download a specific version
+dw swift . --tag v2.3.0 --force        # download a specific version example
 dw swift . --nightly --force           # download the latest nightly build
 ```
 

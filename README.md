@@ -440,7 +440,7 @@ Download the latest Swift release, a specific tag, or the nightly build.
 
 ```sh
 dw swift -l
-dw swift . --tag v1.25.1 --force
+dw swift . --tag v2.3.0 --force
 dw swift . --nightly --force
 ```
 
