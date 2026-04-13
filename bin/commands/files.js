@@ -309,7 +309,7 @@ async function getFilesStructure(env, user, dirPath, recursive, includeFiles) {
 export async function uploadFiles(env, user, localFilePaths, destinationPath, createEmpty = false, overwrite = false) {
     console.log('Uploading files')
 
-    const chunkSize = 1000;
+    const chunkSize = 300;
     const chunks = [];
 
     for (let i = 0; i < localFilePaths.length; i += chunkSize) {
