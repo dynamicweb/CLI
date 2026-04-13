@@ -396,8 +396,12 @@ dw files [dirPath] [outPath] [options]
 | `-f`, `--includeFiles` | Include files in listings |
 | `-e`, `--export` | Export from the environment to disk |
 | `-i`, `--import` | Import from disk to the environment |
+| `-d`, `--delete` | Delete a file or directory on the environment |
+| `--empty` | Used with `--delete`, empties a directory instead of removing it |
+| `--copy <dest>` | Copy a file or directory to the given destination path on the environment |
+| `--move <dest>` | Move a file or directory to the given destination path on the environment |
 | `-r`, `--recursive` | Recurse through subdirectories |
-| `-o`, `--overwrite` | Allow overwriting existing files on import |
+| `-o`, `--overwrite` | Allow overwriting existing files on import or move |
 | `--createEmpty` | Create files even if the source file is empty |
 | `--raw` | Keep exported archives zipped instead of extracting |
 | `-af`, `--asFile` | Force the source path to be treated as a file |
@@ -418,6 +422,60 @@ dw files templates/Translations.xml ./templates -e
 
 # Import files from disk, recursively with overwrite
 dw files ./Files templates -iro
+
+# Delete a file
+dw files /Templates/Designs/old-bundle.js --delete
+
+# Delete a directory
+dw files /Templates/Designs/OldDesign --delete
+
+# Empty a directory (remove contents, keep the directory)
+dw files /Templates/Designs/MyDesign --delete --empty
+
+# Copy a directory within the environment
+dw files /Templates/Designs/MyDesign --copy /Templates/Designs/MyDesign-backup
+
+# Copy a file to another directory
+dw files /Templates/config.json --copy /Templates/Backups
+
+# Move a directory
+dw files /Templates/Designs/OldName --move /Templates/Designs/Archive
+
+# Move a file with overwrite
+dw files /Templates/config.json --move /Templates/Backups --overwrite
+```
+
+#### Deleting files and directories
+
+The `--delete` flag removes files and directories from the environment. The CLI uses the same path detection as other operations -- paths with a file extension are treated as files, paths without are treated as directories. Use `--asFile` or `--asDirectory` to override when needed.
+
+When used interactively, the CLI prompts for confirmation before deleting. In JSON output mode (`--output json`), the confirmation is skipped to support scripted and CI/CD usage.
+
+The `--empty` flag can be combined with `--delete` to remove the contents of a directory without removing the directory itself. This is useful for cleaning a deployment target before importing fresh files:
+
+```sh
+# Clean and redeploy
+dw files /Templates/Designs/MyDesign --delete --empty \
+  --host "$TARGET_HOST" $AUTH_FLAGS --output json
+
+dw files ./dist /Templates/Designs/MyDesign -iro \
+  --host "$TARGET_HOST" $AUTH_FLAGS --output json
+```
+
+#### Copying and moving files and directories
+
+The `--copy` and `--move` flags operate on files and directories within the environment. Both accept a destination path as their value. These work with both files and directories -- the server handles detection.
+
+The `--overwrite` flag can be combined with `--move` to overwrite existing files at the destination.
+
+```sh
+# Back up a design before deploying a new version
+dw files /Templates/Designs/MyDesign --copy /Templates/Designs/MyDesign-backup \
+  --host "$TARGET_HOST" $AUTH_FLAGS --output json
+
+# Reorganize files on the server
+dw files /Templates/OldLocation/config.json --move /Templates/NewLocation --overwrite \
+  --host "$TARGET_HOST" $AUTH_FLAGS --output json
 ```
 
 #### Source type detection
@@ -482,6 +540,73 @@ dw files ./Files templates -i -r --output json
     "filesProcessed": 1,
     "chunks": 1
   }
+}
+```
+
+```sh
+dw files /Templates/Designs/OldDesign --delete --output json
+```
+
+```json
+{
+  "ok": true,
+  "command": "files",
+  "operation": "delete",
+  "status": 200,
+  "data": [
+    {
+      "type": "delete",
+      "path": "/Templates/Designs/OldDesign",
+      "mode": "directory"
+    }
+  ],
+  "errors": [],
+  "meta": {}
+}
+```
+
+```sh
+dw files /Templates/Designs/MyDesign --copy /Templates/Designs/MyDesign-backup --output json
+```
+
+```json
+{
+  "ok": true,
+  "command": "files",
+  "operation": "copy",
+  "status": 200,
+  "data": [
+    {
+      "type": "copy",
+      "sourcePath": "/Templates/Designs/MyDesign",
+      "destination": "/Templates/Designs/MyDesign-backup"
+    }
+  ],
+  "errors": [],
+  "meta": {}
+}
+```
+
+```sh
+dw files /Templates/config.json --move /Templates/Backups --output json
+```
+
+```json
+{
+  "ok": true,
+  "command": "files",
+  "operation": "move",
+  "status": 200,
+  "data": [
+    {
+      "type": "move",
+      "sourcePath": "/Templates/config.json",
+      "destination": "/Templates/Backups",
+      "overwrite": false
+    }
+  ],
+  "errors": [],
+  "meta": {}
 }
 ```
 
