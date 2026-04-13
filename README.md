@@ -11,14 +11,29 @@ The DynamicWeb CLI can also help with active development of custom addins to sol
 Extracting files from solutions is just as easy as well, with the DynamicWeb CLI you can list out the structure of a solution and get full exports of the files structure and the database. Importing files into a solution is just as easy as well, as long as you have access to the files and the solution, they can be imported with a simple command using the DynamicWeb CLI.
 
 ## Get started
-To install after cloning, move to project dir and run
-> $ npm install -g .
-> 
-> $ npm install
+### Install from npm
+Install the published CLI globally:
+> $ npm install -g @dynamicweb/cli
 
-Note that specific installations might be necessary if you're faced with errors such as 'Error [ERR_MODULE_NOT_FOUND]: Cannot find package 'yargs''
-In which case try installing that module specifically;
-> $ npm install yargs
+Then verify the command is available:
+> $ dw --help
+
+### Install from source
+If you're working on the CLI locally, clone the repository, move into the project directory, and run:
+> $ npm install
+>
+> $ npm install -g .
+
+This installs dependencies for development and links the current checkout as the global `dw` command.
+
+### Publish a new version
+Before publishing, make sure the version in `package.json` has been bumped:
+> $ npm version patch
+
+Log in to npm and publish the scoped package publicly:
+> $ npm login
+>
+> $ npm publish --access public
 
 ## Commands
 All commands and options can be viewed by running
