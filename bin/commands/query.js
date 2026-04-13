@@ -1,27 +1,27 @@
 import fetch from 'node-fetch';
 import { setupEnv, getAgent } from './env.js';
 import { setupUser } from './login.js';
-import yargsInteractive from 'yargs-interactive';
+import { input } from '@inquirer/prompts';
 
 const exclude = ['_', '$0', 'query', 'list', 'i', 'l', 'interactive']
 
 export function queryCommand() {
     return {
-        command: 'query [query]', 
-        describe: 'Runs the given query', 
+        command: 'query [query]',
+        describe: 'Runs the given query',
         builder: (yargs) => {
             return yargs
-            .positional('query', {
-                describe: 'The query to execute'
-            })
-            .option('list', {
-                alias: 'l',
-                describe: 'Lists all the properties for the query'
-            })
-            .option('interactive', {
-                alias: 'i',
-                describe: 'Runs in interactive mode to ask for query parameters one by one'
-            })
+                .positional('query', {
+                    describe: 'The query to execute'
+                })
+                .option('list', {
+                    alias: 'l',
+                    describe: 'Lists all the properties for the query'
+                })
+                .option('interactive', {
+                    alias: 'i',
+                    describe: 'Runs in interactive mode to ask for query parameters one by one'
+                })
         },
         handler: (argv) => {
             if (argv.verbose) console.info(`Running query ${argv.query}`)
@@ -68,18 +68,13 @@ async function getProperties(argv) {
 async function getQueryParams(argv) {
     let params = {}
     if (argv.interactive) {
-        let props = { interactive: { default: true }}
         let properties = await getProperties(argv);
         console.log('The following properties will be requested:')
         console.log(properties)
-        Array.from(properties).forEach(p => props[p] = { type: 'input', prompt: 'if-no-arg'})
-        await yargsInteractive()
-        .interactive(props)
-        .then((result) => {
-            Object.keys(result).filter(k => !exclude.includes(k)).forEach(k => {
-                if (result[k]) params[k] = result[k]
-            })
-        });
+        for (const p of properties) {
+            const value = await input({ message: p });
+            if (value) params[p] = value;
+        }
     } else {
         Object.keys(argv).filter(k => !exclude.includes(k)).forEach(k => params[k] = argv[k])
     }

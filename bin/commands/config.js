@@ -7,7 +7,7 @@ let localConfig;
 export function configCommand() {
     return {
         command: 'config',
-        describe: 'Edit the configs located in usr/.dwc',
+        describe: 'Edit the configs located in ~/.dwc',
         handler: (argv) => handleConfig(argv),
         builder: {
             prop: {

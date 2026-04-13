@@ -1,7 +1,7 @@
 import { updateConfig, getConfig } from './config.js'
 import { Agent as HttpAgent } from 'http';
 import { Agent as HttpsAgent } from 'https';
-import yargsInteractive from 'yargs-interactive';
+import { input } from '@inquirer/prompts';
 
 const httpAgent = new HttpAgent({
     rejectUnauthorized: false
@@ -84,7 +84,7 @@ async function handleEnv(argv) {
     } else if (argv.list) {
         console.log(`Existing environments: ${Object.keys(getConfig().env || {})}`)
     } else {
-        interactiveEnv(argv, {
+        await interactiveEnv(argv, {
             environment: {
                 type: 'input'
             },
@@ -101,32 +101,40 @@ async function handleEnv(argv) {
 
 export async function interactiveEnv(argv, options) {
     if (argv.verbose) console.info('Setting up new environment')
-    await yargsInteractive()
-        .interactive(options)
-        .then(async (result) => {
-            getConfig().env = getConfig().env || {};
-            getConfig().env[result.environment] = getConfig().env[result.environment] || {};
-            if (result.host) {
-                var hostSplit = result.host.split("://");
-                if (hostSplit.length == 1) {
-                    getConfig().env[result.environment].protocol = 'https';
-                    getConfig().env[result.environment].host = hostSplit[0];
-                } else if (hostSplit.length == 2) {
-                    getConfig().env[result.environment].protocol = hostSplit[0];
-                    getConfig().env[result.environment].host = hostSplit[1];
-                } else {
-                    console.log(`Issues resolving host ${result.host}`);
-                    return;
-                }
-            }
-            if (result.environment) {
-                getConfig().current = getConfig().current || {};
-                getConfig().current.env = result.environment;
-            }
-            updateConfig();
-            console.log(`Your current environment is now ${getConfig().current.env}`);
-            console.log(`To change the host of your environment, use the command 'dw env'`)
+    const result = {};
+    for (const [key, config] of Object.entries(options)) {
+        if (key === 'interactive') continue;
+        if (config.prompt === 'never') {
+            result[key] = config.default;
+            continue;
+        }
+        result[key] = await input({
+            message: config.describe || key,
+            default: config.default
         });
+    }
+    getConfig().env = getConfig().env || {};
+    getConfig().env[result.environment] = getConfig().env[result.environment] || {};
+    if (result.host) {
+        const hostSplit = result.host.split("://");
+        if (hostSplit.length == 1) {
+            getConfig().env[result.environment].protocol = 'https';
+            getConfig().env[result.environment].host = hostSplit[0];
+        } else if (hostSplit.length == 2) {
+            getConfig().env[result.environment].protocol = hostSplit[0];
+            getConfig().env[result.environment].host = hostSplit[1];
+        } else {
+            console.log(`Issues resolving host ${result.host}`);
+            return;
+        }
+    }
+    if (result.environment) {
+        getConfig().current = getConfig().current || {};
+        getConfig().current.env = result.environment;
+    }
+    updateConfig();
+    console.log(`Your current environment is now ${getConfig().current.env}`);
+    console.log(`To change the host of your environment, use the command 'dw env'`)
 }
 
 async function changeEnv(argv) {
