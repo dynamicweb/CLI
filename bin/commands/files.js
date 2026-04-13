@@ -68,6 +68,23 @@ export function filesCommand() {
                 hidden: true,
                 describe: 'Deprecated alias for --dangerouslyIncludeLogsAndCache'
             })
+            .option('delete', {
+                alias: 'd',
+                type: 'boolean',
+                describe: 'Deletes the file or directory at [dirPath]. Detects type from path (use --asFile/--asDirectory to override)'
+            })
+            .option('empty', {
+                type: 'boolean',
+                describe: 'Used with --delete, empties a directory instead of deleting it'
+            })
+            .option('copy', {
+                type: 'string',
+                describe: 'Copies the file or directory at [dirPath] to the given destination path'
+            })
+            .option('move', {
+                type: 'string',
+                describe: 'Moves the file or directory at [dirPath] to the given destination path'
+            })
             .option('asFile', {
                 type: 'boolean',
                 alias: 'af',
@@ -168,6 +185,46 @@ async function handleFiles(argv, output) {
                 await uploadFiles(env, user, filesInDir, argv.outPath, argv.createEmpty, argv.overwrite, output);
             }
         }
+    } else if (argv.delete) {
+        if (!argv.dirPath) {
+            throw createCommandError('A path is required for delete operations.', 400);
+        }
+
+        const isFile = argv.asFile || argv.asDirectory
+            ? argv.asFile
+            : path.extname(argv.dirPath) !== '';
+
+        if (argv.empty && isFile) {
+            throw createCommandError('--empty can only be used with directories.', 400);
+        }
+
+        const shouldConfirm = !output.json;
+
+        if (shouldConfirm) {
+            const action = argv.empty
+                ? `empty directory "${argv.dirPath}"`
+                : isFile
+                    ? `delete file "${argv.dirPath}"`
+                    : `delete directory "${argv.dirPath}"`;
+
+            await interactiveConfirm(`Are you sure you want to ${action}?`, async () => {
+                await deleteRemote(env, user, argv.dirPath, isFile, argv.empty, output);
+            });
+        } else {
+            await deleteRemote(env, user, argv.dirPath, isFile, argv.empty, output);
+        }
+    } else if (argv.copy) {
+        if (!argv.dirPath) {
+            throw createCommandError('A source path [dirPath] is required for copy operations.', 400);
+        }
+
+        await copyRemote(env, user, argv.dirPath, argv.copy, output);
+    } else if (argv.move) {
+        if (!argv.dirPath) {
+            throw createCommandError('A source path [dirPath] is required for move operations.', 400);
+        }
+
+        await moveRemote(env, user, argv.dirPath, argv.move, argv.overwrite, output);
     }
 }
 
@@ -356,6 +413,126 @@ async function getFilesStructure(env, user, dirPath, recursive, includeFiles) {
     }
 }
 
+async function deleteRemote(env, user, remotePath, isFile, empty, output) {
+    let endpoint;
+    let mode;
+    let data;
+
+    if (isFile) {
+        endpoint = 'FileDelete';
+        mode = 'file';
+        const parentDir = path.posix.dirname(remotePath);
+        data = {
+            DirectoryPath: parentDir === '.' ? '/' : parentDir,
+            Ids: [remotePath]
+        };
+    } else if (empty) {
+        endpoint = 'DirectoryEmpty';
+        mode = 'empty';
+        data = { Path: remotePath };
+    } else {
+        endpoint = 'DirectoryDelete';
+        mode = 'directory';
+        data = { Path: remotePath };
+    }
+
+    output.log(`${mode === 'empty' ? 'Emptying' : 'Deleting'} ${mode === 'file' ? 'file' : 'directory'}: ${remotePath}`);
+
+    const res = await fetch(`${env.protocol}://${env.host}/Admin/Api/${endpoint}`, {
+        method: 'POST',
+        body: JSON.stringify(data),
+        headers: {
+            'Authorization': `Bearer ${user.apiKey}`,
+            'Content-Type': 'application/json'
+        },
+        agent: getAgent(env.protocol)
+    });
+
+    if (!res.ok) {
+        throw createCommandError(`Failed to ${mode === 'empty' ? 'empty' : 'delete'} "${remotePath}".`, res.status, await parseJsonSafe(res));
+    }
+
+    const body = await parseJsonSafe(res);
+
+    output.setStatus(200);
+    output.addData({
+        type: 'delete',
+        path: remotePath,
+        mode,
+        response: body
+    });
+
+    output.log(`Successfully ${mode === 'empty' ? 'emptied' : 'deleted'}: ${remotePath}`);
+}
+
+async function copyRemote(env, user, sourcePath, destination, output) {
+    output.log(`Copying ${sourcePath} to ${destination}`);
+
+    const res = await fetch(`${env.protocol}://${env.host}/Admin/Api/AssetCopy`, {
+        method: 'POST',
+        body: JSON.stringify({
+            Destination: destination,
+            Ids: [sourcePath]
+        }),
+        headers: {
+            'Authorization': `Bearer ${user.apiKey}`,
+            'Content-Type': 'application/json'
+        },
+        agent: getAgent(env.protocol)
+    });
+
+    if (!res.ok) {
+        throw createCommandError(`Failed to copy "${sourcePath}" to "${destination}".`, res.status, await parseJsonSafe(res));
+    }
+
+    const body = await parseJsonSafe(res);
+
+    output.setStatus(200);
+    output.addData({
+        type: 'copy',
+        sourcePath,
+        destination,
+        response: body
+    });
+
+    output.log(`Successfully copied ${sourcePath} to ${destination}`);
+}
+
+async function moveRemote(env, user, sourcePath, destination, overwrite, output) {
+    output.log(`Moving ${sourcePath} to ${destination}`);
+
+    const res = await fetch(`${env.protocol}://${env.host}/Admin/Api/AssetMove`, {
+        method: 'POST',
+        body: JSON.stringify({
+            Destination: destination,
+            Overwrite: Boolean(overwrite),
+            Ids: [sourcePath]
+        }),
+        headers: {
+            'Authorization': `Bearer ${user.apiKey}`,
+            'Content-Type': 'application/json'
+        },
+        agent: getAgent(env.protocol)
+    });
+
+    if (!res.ok) {
+        throw createCommandError(`Failed to move "${sourcePath}" to "${destination}".`, res.status, await parseJsonSafe(res));
+    }
+
+    const body = await parseJsonSafe(res);
+
+    output.setStatus(200);
+    output.addData({
+        type: 'move',
+        sourcePath,
+        destination,
+        overwrite: Boolean(overwrite),
+        response: body
+    });
+
+    output.log(`Successfully moved ${sourcePath} to ${destination}`);
+}
+
 export async function uploadFiles(env, user, localFilePaths, destinationPath, createEmpty = false, overwrite = false, output = createFilesOutput({})) {
     output.log('Uploading files')
 
@@ -499,6 +676,18 @@ function getFilesOperation(argv) {
 
     if (argv.import) {
         return 'import';
+    }
+
+    if (argv.delete) {
+        return 'delete';
+    }
+
+    if (argv.copy) {
+        return 'copy';
+    }
+
+    if (argv.move) {
+        return 'move';
     }
 
     return 'unknown';
