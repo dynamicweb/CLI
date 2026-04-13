@@ -1,7 +1,7 @@
 import fetch from 'node-fetch';
 import path from 'path';
 import fs from 'fs';
-import { setupEnv, getAgent } from './env.js';
+import { setupEnv, getAgent, createCommandError } from './env.js';
 import { setupUser } from './login.js';
 
 const exclude = ['_', '$0', 'command', 'list', 'json', 'verbose', 'v', 'host', 'protocol', 'apiKey', 'env', 'output', 'auth', 'clientId', 'clientSecret', 'clientIdEnv', 'clientSecretEnv', 'oauth']
@@ -137,12 +137,6 @@ function createCommandOutput(argv) {
     };
 }
 
-function createCommandError(message, status, details = null) {
-    const error = new Error(message);
-    error.status = status;
-    error.details = details;
-    return error;
-}
 
 async function parseJsonSafe(res) {
     try {

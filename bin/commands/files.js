@@ -2,7 +2,7 @@ import fetch from 'node-fetch';
 import path from 'path';
 import fs from 'fs';
 import FormData from 'form-data';
-import { setupEnv, getAgent } from './env.js';
+import { setupEnv, getAgent, createCommandError } from './env.js';
 import { setupUser } from './login.js';
 import { interactiveConfirm, formatBytes, createThrottledStatusUpdater } from '../utils.js';
 import { downloadWithProgress, tryGetFileNameFromResponse } from '../downloader.js';
@@ -706,12 +706,6 @@ function getFilesOperation(argv) {
     return 'unknown';
 }
 
-function createCommandError(message, status, details = null) {
-    const error = new Error(message);
-    error.status = status;
-    error.details = details;
-    return error;
-}
 
 async function parseJsonSafe(res) {
     try {

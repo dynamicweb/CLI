@@ -1,6 +1,6 @@
 import fetch from 'node-fetch';
 import path from 'path';
-import { setupEnv, getAgent } from './env.js';
+import { setupEnv, getAgent, createCommandError } from './env.js';
 import { setupUser } from './login.js';
 import { uploadFiles, resolveFilePath } from './files.js';
 
@@ -135,12 +135,6 @@ function createInstallOutput(argv) {
     };
 }
 
-function createCommandError(message, status, details = null) {
-    const error = new Error(message);
-    error.status = status;
-    error.details = details;
-    return error;
-}
 
 async function parseJsonSafe(res) {
     try {
