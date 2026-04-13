@@ -3,7 +3,7 @@ import { setupEnv, getAgent } from './env.js';
 import { setupUser } from './login.js';
 import { input } from '@inquirer/prompts';
 
-const exclude = ['_', '$0', 'query', 'list', 'i', 'l', 'interactive']
+const exclude = ['_', '$0', 'query', 'list', 'i', 'l', 'interactive', 'verbose', 'v', 'host', 'protocol', 'apiKey', 'env']
 
 export function queryCommand() {
     return {
@@ -73,7 +73,10 @@ async function getQueryParams(argv) {
         console.log(properties)
         for (const p of properties) {
             const value = await input({ message: p });
-            if (value) params[p] = value;
+            if (value) {
+                const fieldName = p.split(' (')[0];
+                params[fieldName] = value;
+            }
         }
     } else {
         Object.keys(argv).filter(k => !exclude.includes(k)).forEach(k => params[k] = argv[k])

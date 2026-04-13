@@ -19,9 +19,9 @@ export function installCommand() {
                 describe: 'Queues the install for next Dynamicweb recycle'
             })
         },
-        handler: (argv) => {
+        handler: async (argv) => {
             if (argv.verbose) console.info(`Installing file located at :${argv.filePath}`)
-            handleInstall(argv)
+            await handleInstall(argv)
         }
     }
 }
@@ -29,8 +29,9 @@ export function installCommand() {
 async function handleInstall(argv) {
     let env = await setupEnv(argv);
     let user = await setupUser(argv, env);
-    await uploadFiles(env, user, [ argv.filePath ], 'System/AddIns/Local', false, true);
-    await installAddin(env, user, resolveFilePath(argv.filePath), argv.queue)
+    let resolvedPath = resolveFilePath(argv.filePath);
+    await uploadFiles(env, user, [ resolvedPath ], 'System/AddIns/Local', false, true);
+    await installAddin(env, user, resolvedPath, argv.queue)
 }
 
 async function installAddin(env, user, resolvedPath, queue) {
