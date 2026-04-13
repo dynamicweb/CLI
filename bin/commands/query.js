@@ -1,5 +1,5 @@
 import fetch from 'node-fetch';
-import { setupEnv, getAgent } from './env.js';
+import { setupEnv, getAgent, createCommandError } from './env.js';
 import { setupUser } from './login.js';
 import { input } from '@inquirer/prompts';
 
@@ -158,12 +158,6 @@ function createQueryOutput(argv) {
     };
 }
 
-function createCommandError(message, status, details = null) {
-    const error = new Error(message);
-    error.status = status;
-    error.details = details;
-    return error;
-}
 
 async function parseJsonSafe(res) {
     try {
