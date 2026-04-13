@@ -1,7 +1,7 @@
 # DynamicWeb CLI
 
 ## What is it?
-DynamicWeb CLI is a powerful command line tool designed to help developers quickly and efficiently manage any given DynamicWeb 10 solution they may have access to. These tools inclues an easy setup and handling of different environments, access to the Management API and an easy way to update a Swift solution.
+DynamicWeb CLI is a powerful command line tool designed to help developers quickly and efficiently manage any given DynamicWeb 10 solution they may have access to. These tools include an easy setup and handling of different environments, access to the Management API and an easy way to update a Swift solution.
 
 Logging into a DynamicWeb 10 solution through the DynamicWeb CLI will create an API Key for the given user, which in turn lets you use any Queries and Commands the solution had, meaning you can control everything you can do in the backend, from your command line.
 With this, you can hook it up to your own build pipelines and processes, if certain requests needs to happen before or after deployments or changes.
@@ -26,6 +26,13 @@ All commands and options can be viewed by running
 > 
 > $ dw \<command\> --help
 
+### Global options
+Most commands support the following global options:
+- `-v` `--verbose`    Run with verbose logging
+- `--host`            Set the host directly, bypassing environment config (requires `--apiKey`)
+- `--apiKey`          Set the API key for an environmentless execution
+- `--protocol`        Set the protocol used (only with `--host`, defaults to `https`)
+
 ### Users and environments
 As most commands are pulling or pushing data from the DW admin API, the necessary authorization is required.
 
@@ -44,7 +51,7 @@ and swap between users by simply supplying the name of the user in the login com
 You can view the current environment and user being used by simply typing
 > $ dw
 
-The configuration will automatically be created when setting up your first environment, but if you already have an Api-key you want to use for a user, you can modify the config directly in the file located in `usr/.dwc`. The structure should look like the following
+The configuration will automatically be created when setting up your first environment, but if you already have an Api-key you want to use for a user, you can modify the config directly in the file located in `~/.dwc`. The structure should look like the following
 ```json
 {
     "env": {
@@ -143,7 +150,7 @@ Getting file information on a specific file by name
 > $ dw command \<command\>
 
 Using command will, like query, fire any given command in the solution. It works like query, given the query parameters necessary, however if a `DataModel` is required for the command, it is given in a json-format, either through a path to a .json file or a literal json-string in the command.
-- `-l` `--list` Lists all the properties for the command, as well as the json model required **currently not working**
+- `-l` `--list` Lists all the properties for the command, as well as the json model required
 - `--json` Takes a path to a .json file or a literal json, i.e --json '{ abc: "123" }'
 
 #### Examples
@@ -169,7 +176,7 @@ Install is somewhat of a shorthand for a few commands. It will upload and instal
 It's meant to be used to easily apply custom dlls to a given project, it being local or otherwise, so after having a dotnet library built locally, this command can be run, pointing to the built .dll and it will handle the rest with all the addin installation, and it will be available in the DynamicWeb solution as soon as the command finishes.
 
 #### Examples
-> $ dw install ./bin/Release/net6.0/CustomProject.dll
+> $ dw install ./bin/Release/net10.0/CustomProject.dll
 
 ### Database
 > $ dw database \<outPath\>

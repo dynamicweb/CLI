@@ -1,25 +1,12 @@
-import yargsInteractive from 'yargs-interactive';
+import { confirm } from '@inquirer/prompts';
 import logUpdate from 'log-update';
 
 const WRITE_THROTTLE_MS = 500;
 
 export async function interactiveConfirm(question, func) {
-    await yargsInteractive()
-        .interactive({
-            confirm: {
-                type: 'confirm',
-                default: true,
-                describe: question,
-                prompt: 'always'
-            },
-            interactive: {
-                default: true
-            }
-        })
-        .then(async (result) => {
-            if (!result.confirm) return;
-            func()
-        });
+    const result = await confirm({ message: question, default: true });
+    if (!result) return;
+    await func();
 }
 
 /**
