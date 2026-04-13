@@ -4,12 +4,19 @@ import { Agent as HttpsAgent } from 'https';
 import { input } from '@inquirer/prompts';
 
 const httpAgent = new HttpAgent({
-    rejectUnauthorized: false
-})
+    keepAlive: true,
+    maxSockets: 8,
+    maxFreeSockets: 4,
+    keepAliveMsecs: 10_000
+});
 
 const httpsAgent = new HttpsAgent({
+    keepAlive: true,
+    maxSockets: 8,
+    maxFreeSockets: 4,
+    keepAliveMsecs: 10_000,
     rejectUnauthorized: false
-})
+});
 
 export function getAgent(protocol) {
     return protocol === 'http' ? httpAgent : httpsAgent;
