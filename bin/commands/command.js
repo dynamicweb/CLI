@@ -33,18 +33,18 @@ export function commandCommand() {
             try {
                 output.verboseLog(`Running command ${argv.command}`);
                 await handleCommand(argv, output);
-                output.finish();
             } catch (err) {
                 output.fail(err);
-                output.finish();
                 process.exit(1);
+            } finally {
+                output.finish();
             }
         }
     }
 }
 
 async function handleCommand(argv, output) {
-    let env = await setupEnv(argv);
+    let env = await setupEnv(argv, output);
     let user = await setupUser(argv, env);
     if (argv.list) {
         const properties = await getProperties(env, user, argv.command);
@@ -59,17 +59,6 @@ async function handleCommand(argv, output) {
 
 async function getProperties(env, user, command) {
     return `This option currently doesn't work`
-    let res = await fetch(`${env.protocol}://${env.host}/Admin/Api/CommandByName?name=${command}`, {
-        method: 'GET',
-        headers: {
-            'Authorization': `Bearer ${user.apiKey}`
-        },
-        agent: getAgent(env.protocol)
-    })
-    if (res.ok) {
-        let body = await res.json()
-        return body.model.propertyNames
-    }
 }
 
 function getQueryParams(argv) {

@@ -30,11 +30,11 @@ export function loginCommand() {
 
             try {
                 await handleLogin(argv, output);
-                output.finish();
             } catch (err) {
                 output.fail(err);
-                output.finish();
                 process.exit(1);
+            } finally {
+                output.finish();
             }
         }
     }
@@ -91,7 +91,7 @@ export async function setupUser(argv, env) {
 
 async function handleLogin(argv, output) {
     if (shouldUseOAuth(argv, getCurrentEnv(argv))) {
-        output.addData(await interactiveOAuthLogin(argv));
+        output.addData(await interactiveOAuthLogin(argv, output));
     } else if (argv.user) {
         output.addData(await changeUser(argv));
     } else {
@@ -286,7 +286,7 @@ async function changeUser(argv) {
     };
 }
 
-async function interactiveOAuthLogin(argv) {
+async function interactiveOAuthLogin(argv, output) {
     verboseLog(argv, 'Configuring OAuth client credentials authentication');
 
     const currentEnvName = getConfig()?.current?.env || 'dev';
@@ -336,7 +336,7 @@ async function interactiveOAuthLogin(argv) {
                 interactive: {
                     default: true
                 }
-            });
+            }, output);
         }
     }
 

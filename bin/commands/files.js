@@ -119,23 +119,23 @@ export function filesCommand() {
             const output = createFilesOutput(argv);
 
             try {
-                output.verboseLog(`Listing directory at: ${argv.dirPath}`);
                 await handleFiles(argv, output);
-                output.finish();
             } catch (err) {
                 output.fail(err);
-                output.finish();
                 process.exit(1);
+            } finally {
+                output.finish();
             }
         }
     }
 }
 
 async function handleFiles(argv, output) {
-    let env = await setupEnv(argv);
+    let env = await setupEnv(argv, output);
     let user = await setupUser(argv, env);
 
     if (argv.list) {
+        output.verboseLog(`Listing directory at: ${argv.dirPath}`);
         let files = (await getFilesStructure(env, user, argv.dirPath, argv.recursive, argv.includeFiles)).model;
         output.setStatus(200);
         output.addData(files);
@@ -150,9 +150,7 @@ async function handleFiles(argv, output) {
     if (argv.export) {
         if (argv.dirPath) {
             
-            const isFile = argv.asFile || argv.asDirectory
-                ? argv.asFile
-                : path.extname(argv.dirPath) !== '';                
+            const isFile = isFilePath(argv, argv.dirPath);
 
             if (isFile) {
                 let parentDirectory = path.dirname(argv.dirPath);              
@@ -190,9 +188,7 @@ async function handleFiles(argv, output) {
             throw createCommandError('A path is required for delete operations.', 400);
         }
 
-        const isFile = argv.asFile || argv.asDirectory
-            ? argv.asFile
-            : path.extname(argv.dirPath) !== '';
+        const isFile = isFilePath(argv, argv.dirPath);
 
         if (argv.empty && isFile) {
             throw createCommandError('--empty can only be used with directories.', 400);
@@ -395,7 +391,11 @@ async function extractArchive(filename, filePath, outPath, raw, output) {
     }
     output.log(`Finished extracting ${filename} to ${outPath}\n`);
 
-    fs.unlink(filePath, function(err) {});
+    fs.unlink(filePath, function(err) {
+        if (err) {
+            output.verboseLog(`Warning: Failed to delete temporary archive ${filePath}: ${err.message}`);
+        }
+    });
 }
 
 async function getFilesStructure(env, user, dirPath, recursive, includeFiles) {
@@ -543,10 +543,10 @@ export async function uploadFiles(env, user, localFilePaths, destinationPath, cr
         chunks.push(localFilePaths.slice(i, i + chunkSize));
     }
 
-    output.mergeMeta({
-        filesProcessed: (output.response.meta.filesProcessed || 0) + localFilePaths.length,
-        chunks: (output.response.meta.chunks || 0) + chunks.length
-    });
+    output.mergeMeta((meta) => ({
+        filesProcessed: (meta.filesProcessed || 0) + localFilePaths.length,
+        chunks: (meta.chunks || 0) + chunks.length
+    }));
 
     for (let i = 0; i < chunks.length; i++) {
         output.log(`Uploading chunk ${i + 1} of ${chunks.length}`);
@@ -607,6 +607,13 @@ export function resolveFilePath(filePath) {
 }
 
 
+function isFilePath(argv, dirPath) {
+    if (argv.asFile || argv.asDirectory) {
+        return argv.asFile;
+    }
+    return path.extname(dirPath) !== '';
+}
+
 function wildcardToRegExp(wildcard) {
     const escaped = wildcard.replace(/[.+?^${}()|[\]\\]/g, '\\$&');
     return new RegExp('^' + escaped.replace(/\*/g, '.*') + '$');
@@ -640,7 +647,8 @@ function createFilesOutput(argv) {
         addData(entry) {
             response.data.push(entry);
         },
-        mergeMeta(meta) {
+        mergeMeta(metaOrFn) {
+            const meta = typeof metaOrFn === 'function' ? metaOrFn(response.meta) : metaOrFn;
             response.meta = {
                 ...response.meta,
                 ...meta
