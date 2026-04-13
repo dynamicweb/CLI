@@ -12,7 +12,7 @@
 ### New features
 
 - **OAuth client credentials authentication** -- the CLI now supports OAuth 2.0 client credentials for headless and CI/CD authentication. Use `dw login --oauth` to configure an environment, or pass `--auth oauth` with `--clientIdEnv`/`--clientSecretEnv` (or `--clientId`/`--clientSecret`) on any command.
-- **Structured JSON output on all API commands** -- `env`, `login`, `files`, `query`, and `command` all support `--output json`, returning a consistent envelope with `ok`, `command`, `operation`, `status`, `data`, `errors`, and `meta` fields.
+- **Structured JSON output on all API commands** -- `env`, `login`, `files`, `query`, `command`, and `install` all support `--output json`, returning a consistent envelope with `ok`, `command`, `operation`, `status`, `data`, `errors`, and `meta` fields.
 - **File delete operations** -- `dw files <path> --delete` removes files and directories from the environment. Combine with `--empty` to clear a directory without removing it.
 - **File copy operations** -- `dw files <path> --copy <destination>` copies files and directories within the environment.
 - **File move operations** -- `dw files <path> --move <destination>` moves files and directories within the environment. Combine with `--overwrite` to replace existing files at the destination.

@@ -17,7 +17,7 @@ If you need to do something once, interactively, the DynamicWeb backend UI is us
 Version 2 is an automation-first overhaul. The headline changes:
 
 - **OAuth client credentials** -- the CLI can now authenticate with an OAuth 2.0 client ID and secret, removing the need for an interactive login in CI/CD pipelines and service-account scenarios. See [Authentication](#authentication) for setup details.
-- **Structured JSON output** -- every API-driven command (`env`, `login`, `files`, `query`, `command`) supports `--output json`, returning a consistent envelope with `ok`, `status`, `data`, `errors`, and `meta` fields. Interactive prompts are suppressed in JSON mode so output is safe to pipe. See [Automation and JSON output](#automation-and-json-output).
+- **Structured JSON output** -- every API-driven command (`env`, `login`, `files`, `query`, `command`, `install`) supports `--output json`, returning a consistent envelope with `ok`, `status`, `data`, `errors`, and `meta` fields. Interactive prompts are suppressed in JSON mode so output is safe to pipe. See [Automation and JSON output](#automation-and-json-output).
 - **File delete, copy, and move** -- the `files` command can now delete, copy, and move files and directories on the environment in addition to listing, exporting, and importing. See the [files command reference](#files).
 - **Consistent error model** -- commands that previously printed a message and exited silently now return structured errors (in JSON mode) or throw with a non-zero exit code. Scripts can rely on exit code `1` and the `errors` array for programmatic error handling.
 
@@ -165,7 +165,7 @@ Use `--auth user` to force user authentication even when an environment is confi
 
 ## Automation and JSON output
 
-Commands that talk to the Management API -- `env`, `login`, `files`, `query`, and `command` -- support `--output json`. This returns a structured envelope instead of human-readable console output:
+Commands that talk to the Management API -- `env`, `login`, `files`, `query`, `command`, and `install` -- support `--output json`. This returns a structured envelope instead of human-readable console output:
 
 ```json
 {
@@ -737,7 +737,7 @@ dw command PageDelete --json '{ "id": "1383" }' --output json
 Upload and install a `.dll` or `.nupkg` add-in into the current environment.
 
 ```sh
-dw install <filePath> [--queue]
+dw install <filePath> [--queue] [--output json]
 ```
 
 **Immediate installation (default):**

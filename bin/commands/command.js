@@ -35,7 +35,7 @@ export function commandCommand() {
                 await handleCommand(argv, output);
             } catch (err) {
                 output.fail(err);
-                process.exit(1);
+                process.exitCode = 1;
             } finally {
                 output.finish();
             }
@@ -58,7 +58,7 @@ async function handleCommand(argv, output) {
 }
 
 async function getProperties(env, user, command) {
-    return `This option currently doesn't work`
+    throw createCommandError('The --list option is not currently implemented for commands.');
 }
 
 function getQueryParams(argv) {

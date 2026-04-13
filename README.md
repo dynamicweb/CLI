@@ -28,7 +28,7 @@ npm install -g .
 
 The `2.0` beta is a substantial overhaul focused on automation and modern authentication.
 
-- Automation-first command output: `env`, `login`, `files`, `query`, and `command` now support `--output json` so scripts and pipelines can consume structured results instead of plain console logs.
+- Automation-first command output: `env`, `login`, `files`, `query`, `command`, and `install` now support `--output json` so scripts and pipelines can consume structured results instead of plain console logs.
 - OAuth client credentials support: the CLI can now authenticate with OAuth 2.0 `client_credentials`, which makes headless and CI/CD usage much easier.
 - Better environment handling: protocol, host, and auth details are stored more cleanly in `~/.dwc`, while one-off runs can still override host and credentials directly.
 - Improved file workflows: file import, export, recursive sync, raw archive export, progress reporting, and source-type override flags make file operations more predictable.
@@ -376,6 +376,46 @@ Upload and install a `.dll` or `.nupkg` add-in into the current environment.
 
 ```sh
 dw install ./bin/Release/net10.0/CustomProject.dll
+dw install ./bin/Release/net10.0/CustomProject.dll --queue --output json
+```
+
+Example JSON output:
+
+```json
+{
+  "ok": true,
+  "command": "install",
+  "operation": "queue",
+  "status": 200,
+  "data": [
+    {
+      "type": "upload",
+      "destinationPath": "System/AddIns/Local",
+      "files": [
+        "/workspace/bin/Release/net10.0/CustomProject.dll"
+      ],
+      "response": {
+        "message": "Upload completed"
+      }
+    },
+    {
+      "type": "install",
+      "filePath": "/workspace/bin/Release/net10.0/CustomProject.dll",
+      "filename": "CustomProject.dll",
+      "queued": true,
+      "response": {
+        "success": true,
+        "message": "Addin installed"
+      }
+    }
+  ],
+  "errors": [],
+  "meta": {
+    "filePath": "./bin/Release/net10.0/CustomProject.dll",
+    "filesProcessed": 1,
+    "chunks": 1
+  }
+}
 ```
 
 ### `dw config`

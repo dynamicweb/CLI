@@ -32,7 +32,7 @@ export function loginCommand() {
                 await handleLogin(argv, output);
             } catch (err) {
                 output.fail(err);
-                process.exit(1);
+                process.exitCode = 1;
             } finally {
                 output.finish();
             }
@@ -91,20 +91,27 @@ export async function setupUser(argv, env) {
 
 async function handleLogin(argv, output) {
     if (shouldUseOAuth(argv, getCurrentEnv(argv))) {
-        output.addData(await interactiveOAuthLogin(argv, output));
+        if (isJsonOutput(argv)) {
+            output.addData(await nonInteractiveOAuthLogin(argv));
+        } else {
+            output.addData(await interactiveOAuthLogin(argv, output));
+        }
     } else if (argv.user) {
         output.addData(await changeUser(argv));
     } else {
+        if (isJsonOutput(argv)) {
+            throw createCommandError('Interactive login is not supported with --output json. Use --apiKey, or configure OAuth with --oauth --clientIdEnv/--clientSecretEnv.');
+        }
         output.addData(await interactiveLogin(argv, {
         environment: {
             type: 'input',
             default: getConfig()?.current?.env || 'dev',
             prompt: 'if-no-arg'
           },
-          username: { 
+          username: {
             type: 'input'
           },
-          password: { 
+          password: {
             type: 'password'
           },
           interactive: {
@@ -317,58 +324,82 @@ async function interactiveOAuthLogin(argv, output) {
         });
     }
 
-    if (!getConfig().env || !getConfig().env[result.environment] || !getConfig().env[result.environment].host || !getConfig().env[result.environment].protocol) {
-        if (argv.host) {
-            ensureEnvironmentFromArgs(result.environment, argv);
-        } else {
-            logMessage(argv, 'The environment specified is missing parameters, please specify them');
-            await interactiveEnv(argv, {
-                environment: {
-                    type: 'input',
-                    default: result.environment,
-                    prompt: 'never'
-                },
-                host: {
-                    describe: 'Enter your host including protocol, i.e "https://yourHost.com":',
-                    type: 'input',
-                    prompt: 'always'
-                },
-                interactive: {
-                    default: true
-                }
-            }, output);
-        }
+    if (argv.host) {
+        ensureEnvironmentFromArgs(result.environment, argv);
+    } else if (!getConfig().env || !getConfig().env[result.environment] || !getConfig().env[result.environment].host || !getConfig().env[result.environment].protocol) {
+        logMessage(argv, 'The environment specified is missing parameters, please specify them');
+        await interactiveEnv(argv, {
+            environment: {
+                type: 'input',
+                default: result.environment,
+                prompt: 'never'
+            },
+            host: {
+                describe: 'Enter your host including protocol, i.e "https://yourHost.com":',
+                type: 'input',
+                prompt: 'always'
+            },
+            interactive: {
+                default: true
+            }
+        }, output);
     }
 
-    const env = getConfig().env[result.environment];
+    const oauthResult = await finalizeOAuthLogin(result.environment, result.clientIdEnv, result.clientSecretEnv, argv);
+
+    logMessage(argv, `OAuth authentication is now configured for ${result.environment}`);
+
+    return oauthResult;
+}
+
+async function nonInteractiveOAuthLogin(argv) {
+    verboseLog(argv, 'Configuring OAuth client credentials authentication (non-interactive)');
+
+    const environment = getConfig()?.current?.env;
+    if (!environment) {
+        throw createCommandError('No environment set. Configure one with "dw env" first.');
+    }
+
+    if (argv.host) {
+        ensureEnvironmentFromArgs(environment, argv);
+    } else if (!getConfig().env?.[environment]?.host) {
+        throw createCommandError(`Environment "${environment}" has no host configured. Pass --host or set it up with "dw env" first.`);
+    }
+
+    const clientIdEnv = argv.clientIdEnv || getConfig().env?.[environment]?.auth?.clientIdEnv || DEFAULT_CLIENT_ID_ENV;
+    const clientSecretEnv = argv.clientSecretEnv || getConfig().env?.[environment]?.auth?.clientSecretEnv || DEFAULT_CLIENT_SECRET_ENV;
+
+    return await finalizeOAuthLogin(environment, clientIdEnv, clientSecretEnv, argv);
+}
+
+async function finalizeOAuthLogin(environment, clientIdEnv, clientSecretEnv, argv) {
+    const env = getConfig().env[environment];
     const oauthConfig = resolveOAuthConfig({
         ...argv,
-        clientIdEnv: result.clientIdEnv,
-        clientSecretEnv: result.clientSecretEnv,
+        clientIdEnv,
+        clientSecretEnv,
         oauth: true
     }, env);
 
     const tokenResult = await fetchOAuthToken(env, oauthConfig, argv.verbose);
 
     getConfig().current = getConfig().current || {};
-    getConfig().current.env = result.environment;
+    getConfig().current.env = environment;
     env.auth = {
         type: 'oauth_client_credentials',
-        clientIdEnv: result.clientIdEnv,
-        clientSecretEnv: result.clientSecretEnv
+        clientIdEnv,
+        clientSecretEnv
     };
     env.current = env.current || {};
     env.current.authType = 'oauth_client_credentials';
     delete env.current.user;
     updateConfig();
 
-    logMessage(argv, `OAuth authentication is now configured for ${result.environment}`);
-
     return {
-        environment: result.environment,
+        environment,
         authType: 'oauth_client_credentials',
-        clientIdEnv: result.clientIdEnv,
-        clientSecretEnv: result.clientSecretEnv,
+        clientIdEnv,
+        clientSecretEnv,
         expires: tokenResult.expires || null
     };
 }
