@@ -12,6 +12,26 @@ The CLI is designed to be composable. Every API-driven command supports structur
 
 If you need to do something once, interactively, the DynamicWeb backend UI is usually faster. If you need to do it repeatedly, across environments, or as part of a build -- that is what the CLI is for.
 
+## What's new in v2
+
+Version 2 is an automation-first overhaul. The headline changes:
+
+- **OAuth client credentials** -- the CLI can now authenticate with an OAuth 2.0 client ID and secret, removing the need for an interactive login in CI/CD pipelines and service-account scenarios. See [Authentication](#authentication) for setup details.
+- **Structured JSON output** -- every API-driven command (`env`, `login`, `files`, `query`, `command`) supports `--output json`, returning a consistent envelope with `ok`, `status`, `data`, `errors`, and `meta` fields. Interactive prompts are suppressed in JSON mode so output is safe to pipe. See [Automation and JSON output](#automation-and-json-output).
+- **File delete, copy, and move** -- the `files` command can now delete, copy, and move files and directories on the environment in addition to listing, exporting, and importing. See the [files command reference](#files).
+- **Consistent error model** -- commands that previously printed a message and exited silently now return structured errors (in JSON mode) or throw with a non-zero exit code. Scripts can rely on exit code `1` and the `errors` array for programmatic error handling.
+
+### Migrating from v1
+
+| v1 | v2 | Notes |
+|----|-----|-------|
+| `--json` | `--output json` | `--json` still works but is deprecated |
+| `--iamstupid` | `--dangerouslyIncludeLogsAndCache` | `--iamstupid` still works but is deprecated |
+| `--host` (required `--apiKey`) | `--host` (works with `--apiKey` or OAuth) | OAuth credentials are now accepted alongside `--host` |
+| Errors printed to stdout | Errors in `errors` array (JSON) or thrown (non-JSON) | Scripts should check exit codes and/or `ok` field |
+
+No changes are required for existing scripts that do not use `--json` or `--iamstupid`. Both deprecated flags continue to work and emit a warning.
+
 ## Installation
 
 The CLI requires **Node.js 20.12.0 or later**.
