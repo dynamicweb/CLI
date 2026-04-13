@@ -3,7 +3,7 @@ import { setupEnv, getAgent } from './env.js';
 import { setupUser } from './login.js';
 import { input } from '@inquirer/prompts';
 
-const exclude = ['_', '$0', 'query', 'list', 'i', 'l', 'interactive', 'verbose', 'v', 'host', 'protocol', 'apiKey', 'env']
+const exclude = ['_', '$0', 'query', 'list', 'i', 'l', 'interactive', 'verbose', 'v', 'host', 'protocol', 'apiKey', 'env', 'output', 'auth', 'clientId', 'clientSecret', 'clientIdEnv', 'clientSecretEnv', 'oauth']
 
 export function queryCommand() {
     return {
@@ -22,30 +22,46 @@ export function queryCommand() {
                     alias: 'i',
                     describe: 'Runs in interactive mode to ask for query parameters one by one'
                 })
+                .option('output', {
+                    choices: ['json'],
+                    describe: 'Outputs a single JSON response for automation-friendly parsing'
+                })
         },
-        handler: (argv) => {
-            if (argv.verbose) console.info(`Running query ${argv.query}`)
-            handleQuery(argv)
+        handler: async (argv) => {
+            const output = createQueryOutput(argv);
+
+            try {
+                output.verboseLog(`Running query ${argv.query}`);
+                await handleQuery(argv, output);
+                output.finish();
+            } catch (err) {
+                output.fail(err);
+                if (!output.json) {
+                    console.error(err.stack || err.message || String(err));
+                }
+                output.finish();
+                process.exit(1);
+            }
         }
     }
 }
 
-async function handleQuery(argv) {
+async function handleQuery(argv, output) {
     let env = await setupEnv(argv);
     let user = await setupUser(argv, env);
     if (argv.list) {
-        console.log(await getProperties(argv))
+        const properties = await getProperties(env, user, argv.query);
+        output.addData(properties);
+        output.log(properties);
     } else {
-        let response = await runQuery(env, user, argv.query, await getQueryParams(argv))
-        console.log(response)
+        let response = await runQuery(env, user, argv.query, await getQueryParams(env, user, argv));
+        output.addData(response);
+        output.log(response);
     }
 }
 
-async function getProperties(argv) {
-    let env = await setupEnv(argv);
-    let user = await setupUser(argv, env);
-
-    let res = await fetch(`${env.protocol}://${env.host}/Admin/Api/QueryByName?name=${argv.query}`, {
+async function getProperties(env, user, query) {
+    let res = await fetch(`${env.protocol}://${env.host}/Admin/Api/QueryByName?name=${query}`, {
         method: 'GET',
         headers: {
             'Authorization': `Bearer ${user.apiKey}`
@@ -54,21 +70,19 @@ async function getProperties(argv) {
     })
     if (res.ok) {
         let body = await res.json()
-        if (body.model.properties.groups === undefined) {
-            console.log('Unable to fetch query parameters');
-            process.exit(1);
+        if (body?.model?.properties?.groups === undefined) {
+            throw createCommandError('Unable to fetch query parameters.', res.status, body);
         }
         return body.model.properties.groups.filter(g => g.name === 'Properties')[0].fields.map(field => `${field.name} (${field.typeName})`)
     }
-    console.log('Unable to fetch query parameters');
-    console.log(res);
-    process.exit(1);
+
+    throw createCommandError('Unable to fetch query parameters.', res.status, await parseJsonSafe(res));
 }
 
-async function getQueryParams(argv) {
+async function getQueryParams(env, user, argv) {
     let params = {}
     if (argv.interactive) {
-        let properties = await getProperties(argv);
+        let properties = await getProperties(env, user, argv.query);
         console.log('The following properties will be requested:')
         console.log(properties)
         for (const p of properties) {
@@ -93,8 +107,67 @@ async function runQuery(env, user, query, params) {
         agent: getAgent(env.protocol)
     })
     if (!res.ok) {
-        console.log(`Error when doing request ${res.url}`)
-        process.exit(1);
+        throw createCommandError(`Error when doing request ${res.url}`, res.status, await parseJsonSafe(res));
     }
     return await res.json()
+}
+
+function createQueryOutput(argv) {
+    const response = {
+        ok: true,
+        command: 'query',
+        operation: argv.list ? 'list' : 'run',
+        status: 200,
+        data: [],
+        errors: [],
+        meta: {
+            query: argv.query
+        }
+    };
+
+    return {
+        json: argv.output === 'json',
+        response,
+        log(value) {
+            if (!this.json) {
+                console.log(value);
+            }
+        },
+        verboseLog(...args) {
+            if (argv.verbose && !this.json) {
+                console.info(...args);
+            }
+        },
+        addData(entry) {
+            response.data.push(entry);
+        },
+        fail(err) {
+            response.ok = false;
+            response.status = err?.status || 1;
+            response.errors.push({
+                message: err?.message || 'Unknown query command error.',
+                details: err?.details ?? null
+            });
+        },
+        finish() {
+            if (this.json) {
+                console.log(JSON.stringify(response, null, 2));
+            }
+        }
+    };
+}
+
+function createCommandError(message, status, details = null) {
+    const error = new Error(message);
+    error.status = status;
+    error.details = details;
+    return error;
+}
+
+async function parseJsonSafe(res) {
+    try {
+        return await res.json();
+    } catch {
+        return null;
+    }
 }
