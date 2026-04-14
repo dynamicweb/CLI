@@ -1,7 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 
-import { resolveUploadOutput } from './files.js';
+import { resolveFilePath, resolveUploadOutput } from './files.js';
 
 test('resolveUploadOutput falls back to a console-compatible output object', () => {
     const output = resolveUploadOutput();
@@ -57,4 +60,17 @@ test('resolveUploadOutput initializes response.meta for partial output objects',
     assert.deepEqual(resolved.response.meta, {
         chunks: 2
     });
+});
+
+test('resolveFilePath throws when no matching file exists', () => {
+    const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'dw-cli-files-test-'));
+
+    try {
+        assert.throws(
+            () => resolveFilePath(path.join(tempDir, 'missing*.nupkg')),
+            /Could not find any files with the name/
+        );
+    } finally {
+        fs.rmSync(tempDir, { recursive: true, force: true });
+    }
 });
