@@ -127,10 +127,10 @@ async function handleFiles(argv) {
         if (argv.dirPath && argv.outPath) {
             let resolvedPath = path.resolve(argv.dirPath);
             if (argv.recursive) {
-                await processDirectory(env, user, resolvedPath, argv.outPath, resolvedPath, argv.createEmpty, true, argv.overwrite);
+                await processDirectory(env, user, resolvedPath, argv.outPath, resolvedPath, argv.createEmpty, true, argv.overwrite, console);
             } else {
                 let filesInDir = getFilesInDirectory(resolvedPath);
-                await uploadFiles(env, user, filesInDir, argv.outPath, argv.createEmpty, argv.overwrite);
+                await uploadFiles(env, user, filesInDir, argv.outPath, argv.createEmpty, argv.overwrite, console);
             }
         }
     }
@@ -142,16 +142,16 @@ function getFilesInDirectory(dirPath) {
             .filter(file => fs.statSync(file).isFile());
 }
 
-async function processDirectory(env, user, dirPath, outPath, originalDir, createEmpty, isRoot = false, overwrite = false) {
+async function processDirectory(env, user, dirPath, outPath, originalDir, createEmpty, isRoot = false, overwrite = false, output = console) {
     let filesInDir = getFilesInDirectory(dirPath);
     if (filesInDir.length > 0)
-        await uploadFiles(env, user, filesInDir, isRoot ? outPath : path.join(outPath, path.basename(dirPath)), createEmpty, overwrite);
+        await uploadFiles(env, user, filesInDir, isRoot ? outPath : path.join(outPath, path.basename(dirPath)), createEmpty, overwrite, output);
 
     const subDirectories = fs.readdirSync(dirPath)
                             .map(subDir => path.join(dirPath, subDir))
                             .filter(subDir => fs.statSync(subDir).isDirectory());
     for (let subDir of subDirectories) {
-        await processDirectory(env, user, subDir, isRoot ? outPath : path.join(outPath, path.basename(dirPath)), originalDir, createEmpty, false, overwrite);
+        await processDirectory(env, user, subDir, isRoot ? outPath : path.join(outPath, path.basename(dirPath)), originalDir, createEmpty, false, overwrite, output);
     }
 }
 
@@ -306,8 +306,9 @@ async function getFilesStructure(env, user, dirPath, recursive, includeFiles) {
     }
 }
 
-export async function uploadFiles(env, user, localFilePaths, destinationPath, createEmpty = false, overwrite = false) {
-    console.log('Uploading files')
+export async function uploadFiles(env, user, localFilePaths, destinationPath, createEmpty = false, overwrite = false, output = console) {
+    output = resolveUploadOutput(output);
+    output.log('Uploading files')
 
     const chunkSize = 300;
     const chunks = [];
@@ -317,25 +318,25 @@ export async function uploadFiles(env, user, localFilePaths, destinationPath, cr
     }
 
     for (let i = 0; i < chunks.length; i++) {
-        console.log(`Uploading chunk ${i + 1} of ${chunks.length}`);
+        output.log(`Uploading chunk ${i + 1} of ${chunks.length}`);
 
         const chunk = chunks[i];
-        await uploadChunk(env, user, chunk, destinationPath, createEmpty, overwrite);
+        await uploadChunk(env, user, chunk, destinationPath, createEmpty, overwrite, output);
 
-        console.log(`Finished uploading chunk ${i + 1} of ${chunks.length}`);
+        output.log(`Finished uploading chunk ${i + 1} of ${chunks.length}`);
     }
 
-    console.log(`Finished uploading files. Total files: ${localFilePaths.length}, total chunks: ${chunks.length}`);
+    output.log(`Finished uploading files. Total files: ${localFilePaths.length}, total chunks: ${chunks.length}`);
 }
 
-async function uploadChunk(env, user, filePathsChunk, destinationPath, createEmpty, overwrite) {
+async function uploadChunk(env, user, filePathsChunk, destinationPath, createEmpty, overwrite, output = console) {
     const form = new FormData();
     form.append('path', destinationPath);
     form.append('skipExistingFiles', String(!overwrite));
     form.append('allowOverwrite', String(overwrite));
     
     filePathsChunk.forEach(fileToUpload => {
-        console.log(`${fileToUpload}`)
+        output.log(`${fileToUpload}`)
         form.append('files', fs.createReadStream(path.resolve(fileToUpload)));
     });
 
@@ -349,13 +350,36 @@ async function uploadChunk(env, user, filePathsChunk, destinationPath, createEmp
     });
     
     if (res.ok) {
-        console.log(await res.json())
+        output.log(await res.json())
     }
     else {
-        console.log(res)
-        console.log(await res.json())
+        output.log(res)
+        output.log(await res.json())
         process.exit(1);
     }
+}
+
+export function resolveUploadOutput(output) {
+    const response = output?.response ?? {};
+    response.meta = response.meta ?? {};
+
+    return {
+        response,
+        log: typeof output?.log === 'function'
+            ? output.log.bind(output)
+            : (...args) => console.log(...args),
+        addData: typeof output?.addData === 'function'
+            ? output.addData.bind(output)
+            : () => {},
+        mergeMeta: typeof output?.mergeMeta === 'function'
+            ? output.mergeMeta.bind(output)
+            : (meta) => {
+                response.meta = {
+                    ...response.meta,
+                    ...meta
+                };
+            }
+    };
 }
 
 export function resolveFilePath(filePath) {
