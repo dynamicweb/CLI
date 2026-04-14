@@ -2,7 +2,7 @@
   "name": "@dynamicweb/cli",
   "type": "module",
   "description": "CLI for interacting with Dynamicweb 10 solutions from the command line.",
-  "version": "1.1.1",
+  "version": "1.1.2",
   "main": "bin/index.js",
   "files": [
     "bin/**"
@@ -15,7 +15,7 @@
     "devops"
   ],
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "node --test"
   },
   "author": "Dynamicweb A/S (https://www.dynamicweb.com)",
   "repository": {
