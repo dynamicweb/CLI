@@ -30,7 +30,7 @@ async function handleInstall(argv) {
     let env = await setupEnv(argv);
     let user = await setupUser(argv, env);
     let resolvedPath = resolveFilePath(argv.filePath);
-    await uploadFiles(env, user, [ resolvedPath ], 'System/AddIns/Local', false, true);
+    await uploadFiles(env, user, [ resolvedPath ], 'System/AddIns/Local', false, true, console);
     await installAddin(env, user, resolvedPath, argv.queue)
 }
 
