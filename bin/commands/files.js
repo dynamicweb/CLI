@@ -10,71 +10,71 @@ import { extractWithProgress } from '../extractor.js';
 
 export function filesCommand() {
     return {
-        command: 'files [dirPath] [outPath]', 
-        describe: 'Handles files', 
+        command: 'files [dirPath] [outPath]',
+        describe: 'Handles files',
         builder: (yargs) => {
             return yargs
-            .positional('dirPath', {
-                describe: 'The directory to list or export'
-            })
-            .positional('outPath', {
-                describe: 'The directory to export the specified directory to',
-                default: '.'
-            })
-            .option('list', {
-                alias: 'l',
-                type: 'boolean',
-                describe: 'Lists all directories and files'
-            })
-            .option('export', {
-                alias: 'e',
-                type: 'boolean',
-                describe: 'Exports the specified directory and all subdirectories at [dirPath] to [outPath]'
-            })
-            .option('import', {
-                alias: 'i',
-                type: 'boolean',
-                describe: 'Imports the file at [dirPath] to [outPath]'
-            })
-            .option('overwrite', {
-                alias: 'o',
-                type: 'boolean',
-                describe: 'Used with import, will overwrite existing files at destination if set to true'
-            })
-            .option('createEmpty', {
-                type: 'boolean',
-                describe: 'Used with import, will create a file even if its empty'
-            })
-            .option('includeFiles', {
-                alias: 'f',
-                type: 'boolean',
-                describe: 'Used with export, includes files in list of directories and files'
-            })
-            .option('recursive', {
-                alias: 'r',
-                type: 'boolean',
-                describe: 'Used with list, import and export, handles all directories recursively'
-            })
-            .option('raw', {
-                type: 'boolean',
-                describe: 'Used with export, keeps zip file instead of unpacking it'
-            })
-            .option('iamstupid', {
-                type: 'boolean',
-                describe: 'Includes export of log and cache folders, NOT RECOMMENDED'
-            })
-            .option('asFile', {
-                type: 'boolean',
-                alias: 'af',
-                describe: 'Forces the command to treat the path as a single file, even if it has no extension.',
-                conflicts: 'asDirectory'
-            })
-            .option('asDirectory', {
-                type: 'boolean',
-                alias: 'ad',
-                describe: 'Forces the command to treat the path as a directory, even if its name contains a dot.',
-                conflicts: 'asFile'
-            })
+                .positional('dirPath', {
+                    describe: 'The directory to list or export'
+                })
+                .positional('outPath', {
+                    describe: 'The directory to export the specified directory to',
+                    default: '.'
+                })
+                .option('list', {
+                    alias: 'l',
+                    type: 'boolean',
+                    describe: 'Lists all directories and files'
+                })
+                .option('export', {
+                    alias: 'e',
+                    type: 'boolean',
+                    describe: 'Exports the specified directory and all subdirectories at [dirPath] to [outPath]'
+                })
+                .option('import', {
+                    alias: 'i',
+                    type: 'boolean',
+                    describe: 'Imports the file at [dirPath] to [outPath]'
+                })
+                .option('overwrite', {
+                    alias: 'o',
+                    type: 'boolean',
+                    describe: 'Used with import, will overwrite existing files at destination if set to true'
+                })
+                .option('createEmpty', {
+                    type: 'boolean',
+                    describe: 'Used with import, will create a file even if its empty'
+                })
+                .option('includeFiles', {
+                    alias: 'f',
+                    type: 'boolean',
+                    describe: 'Used with export, includes files in list of directories and files'
+                })
+                .option('recursive', {
+                    alias: 'r',
+                    type: 'boolean',
+                    describe: 'Used with list, import and export, handles all directories recursively'
+                })
+                .option('raw', {
+                    type: 'boolean',
+                    describe: 'Used with export, keeps zip file instead of unpacking it'
+                })
+                .option('iamstupid', {
+                    type: 'boolean',
+                    describe: 'Includes export of log and cache folders, NOT RECOMMENDED'
+                })
+                .option('asFile', {
+                    type: 'boolean',
+                    alias: 'af',
+                    describe: 'Forces the command to treat the path as a single file, even if it has no extension.',
+                    conflicts: 'asDirectory'
+                })
+                .option('asDirectory', {
+                    type: 'boolean',
+                    alias: 'ad',
+                    describe: 'Forces the command to treat the path as a directory, even if its name contains a dot.',
+                    conflicts: 'asFile'
+                })
         },
         handler: async (argv) => {
             if (argv.verbose) console.info(`Listing directory at: ${argv.dirPath}`)
@@ -97,15 +97,15 @@ async function handleFiles(argv) {
 
     if (argv.export) {
         if (argv.dirPath) {
-            
+
             const isFile = argv.asFile || argv.asDirectory
                 ? argv.asFile
-                : path.extname(argv.dirPath) !== '';                
+                : path.extname(argv.dirPath) !== '';
 
             if (isFile) {
-                let parentDirectory = path.dirname(argv.dirPath);              
+                let parentDirectory = path.dirname(argv.dirPath);
                 parentDirectory = parentDirectory === '.' ? '/' : parentDirectory;
-                
+
                 await download(env, user, parentDirectory, argv.outPath, false, null, true, argv.iamstupid, [argv.dirPath], true, argv.verbose);
             } else {
                 await download(env, user, argv.dirPath, argv.outPath, true, null, argv.raw, argv.iamstupid, [], false, argv.verbose);
@@ -137,21 +137,21 @@ async function handleFiles(argv) {
 }
 
 function getFilesInDirectory(dirPath) {
-    return fs.statSync(dirPath).isFile() ? [ dirPath ] : fs.readdirSync(dirPath)
-            .map(file => path.join(dirPath, file))
-            .filter(file => fs.statSync(file).isFile());
+    return fs.statSync(dirPath).isFile() ? [dirPath] : fs.readdirSync(dirPath)
+        .map(file => path.join(dirPath, file))
+        .filter(file => fs.statSync(file).isFile());
 }
 
-async function processDirectory(env, user, dirPath, outPath, originalDir, createEmpty, isRoot = false, overwrite = false) {
+async function processDirectory(env, user, dirPath, outPath, originalDir, createEmpty, isRoot = false, overwrite = false, output = console) {
     let filesInDir = getFilesInDirectory(dirPath);
     if (filesInDir.length > 0)
-        await uploadFiles(env, user, filesInDir, isRoot ? outPath : path.join(outPath, path.basename(dirPath)), createEmpty, overwrite);
+        await uploadFiles(env, user, filesInDir, isRoot ? outPath : path.join(outPath, path.basename(dirPath)), createEmpty, overwrite, output);
 
     const subDirectories = fs.readdirSync(dirPath)
-                            .map(subDir => path.join(dirPath, subDir))
-                            .filter(subDir => fs.statSync(subDir).isDirectory());
+        .map(subDir => path.join(dirPath, subDir))
+        .filter(subDir => fs.statSync(subDir).isDirectory());
     for (let subDir of subDirectories) {
-        await processDirectory(env, user, subDir, isRoot ? outPath : path.join(outPath, path.basename(dirPath)), originalDir, createEmpty, false, overwrite);
+        await processDirectory(env, user, subDir, isRoot ? outPath : path.join(outPath, path.basename(dirPath)), originalDir, createEmpty, false, overwrite, output);
     }
 }
 
@@ -184,7 +184,7 @@ function resolveTree(dirs, indentLevel, parentHasFiles) {
             resolveTree(dir.files?.data ?? [], indentLevel + '│\t', false);
         } else {
             resolveTree(dir.directories ?? [], indentLevel + '\t', hasFiles);
-            resolveTree(dir.files?.data ?? [], indentLevel + '\t', false);  
+            resolveTree(dir.files?.data ?? [], indentLevel + '\t', false);
         }
     }
 }
@@ -286,7 +286,7 @@ async function extractArchive(filename, filePath, outPath, raw) {
     updater.stop();
     console.log(`Finished extracting ${filename} to ${outPath}\n`);
 
-    fs.unlink(filePath, function(err) {});
+    fs.unlink(filePath, function (err) { });
 }
 
 async function getFilesStructure(env, user, dirPath, recursive, includeFiles) {
@@ -306,8 +306,9 @@ async function getFilesStructure(env, user, dirPath, recursive, includeFiles) {
     }
 }
 
-export async function uploadFiles(env, user, localFilePaths, destinationPath, createEmpty = false, overwrite = false) {
-    console.log('Uploading files')
+export async function uploadFiles(env, user, localFilePaths, destinationPath, createEmpty = false, overwrite = false, output) {
+    output = resolveUploadOutput(output);
+    output.log('Uploading files')
 
     const chunkSize = 300;
     const chunks = [];
@@ -316,30 +317,41 @@ export async function uploadFiles(env, user, localFilePaths, destinationPath, cr
         chunks.push(localFilePaths.slice(i, i + chunkSize));
     }
 
+    output.mergeMeta({
+        filesProcessed: (output.response.meta.filesProcessed || 0) + localFilePaths.length,
+        chunks: (output.response.meta.chunks || 0) + chunks.length
+    });
+
     for (let i = 0; i < chunks.length; i++) {
-        console.log(`Uploading chunk ${i + 1} of ${chunks.length}`);
+        output.log(`Uploading chunk ${i + 1} of ${chunks.length}`);
 
         const chunk = chunks[i];
-        await uploadChunk(env, user, chunk, destinationPath, createEmpty, overwrite);
+        const body = await uploadChunk(env, user, chunk, destinationPath, createEmpty, overwrite, output);
+        output.addData({
+            type: 'upload',
+            destinationPath,
+            files: chunk.map(filePath => path.resolve(filePath)),
+            response: body
+        });
 
-        console.log(`Finished uploading chunk ${i + 1} of ${chunks.length}`);
+        output.log(`Finished uploading chunk ${i + 1} of ${chunks.length}`);
     }
 
-    console.log(`Finished uploading files. Total files: ${localFilePaths.length}, total chunks: ${chunks.length}`);
+    output.log(`Finished uploading files. Total files: ${localFilePaths.length}, total chunks: ${chunks.length}`);
 }
 
-async function uploadChunk(env, user, filePathsChunk, destinationPath, createEmpty, overwrite) {
+async function uploadChunk(env, user, filePathsChunk, destinationPath, createEmpty, overwrite, output = console) {
     const form = new FormData();
     form.append('path', destinationPath);
     form.append('skipExistingFiles', String(!overwrite));
     form.append('allowOverwrite', String(overwrite));
-    
+
     filePathsChunk.forEach(fileToUpload => {
-        console.log(`${fileToUpload}`)
+        output.log(`${fileToUpload}`)
         form.append('files', fs.createReadStream(path.resolve(fileToUpload)));
     });
 
-    const res = await fetch(`${env.protocol}://${env.host}/Admin/Api/Upload?` + new URLSearchParams({"createEmptyFiles": createEmpty, "createMissingDirectories": true}), {
+    const res = await fetch(`${env.protocol}://${env.host}/Admin/Api/Upload?` + new URLSearchParams({ "createEmptyFiles": createEmpty, "createMissingDirectories": true }), {
         method: 'POST',
         body: form,
         headers: {
@@ -347,14 +359,57 @@ async function uploadChunk(env, user, filePathsChunk, destinationPath, createEmp
         },
         agent: getAgent(env.protocol)
     });
-    
+
     if (res.ok) {
-        console.log(await res.json())
+        return await res.json()
     }
     else {
-        console.log(res)
-        console.log(await res.json())
+        if (output.structured) {
+            throw createUploadError('File upload failed.', res.status, await parseJsonSafe(res));
+        }
+
+        output.log(res)
+        output.log(await parseJsonSafe(res))
         process.exit(1);
+    }
+}
+
+export function resolveUploadOutput(output) {
+    const response = output?.response ?? {};
+    response.meta = response.meta ?? {};
+
+    return {
+        structured: Boolean(output),
+        response,
+        log: typeof output?.log === 'function'
+            ? output.log.bind(output)
+            : (...args) => console.log(...args),
+        addData: typeof output?.addData === 'function'
+            ? output.addData.bind(output)
+            : () => { },
+        mergeMeta: typeof output?.mergeMeta === 'function'
+            ? output.mergeMeta.bind(output)
+            : (meta) => {
+                response.meta = {
+                    ...response.meta,
+                    ...meta
+                };
+            }
+    };
+}
+
+function createUploadError(message, status, details = null) {
+    const error = new Error(message);
+    error.status = status;
+    error.details = details;
+    return error;
+}
+
+async function parseJsonSafe(res) {
+    try {
+        return await res.json();
+    } catch {
+        return null;
     }
 }
 
@@ -362,10 +417,8 @@ export function resolveFilePath(filePath) {
     let p = path.parse(path.resolve(filePath))
     let regex = wildcardToRegExp(p.base);
     let resolvedPath = fs.readdirSync(p.dir).filter((allFilesPaths) => allFilesPaths.match(regex) !== null)[0]
-    if (resolvedPath === undefined)
-    {
-        console.log('Could not find any files with the name ' + filePath);
-        process.exit(1);
+    if (resolvedPath === undefined) {
+        throw new Error('Could not find any files with the name ' + filePath);
     }
     return path.join(p.dir, resolvedPath);
 }
