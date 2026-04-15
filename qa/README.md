@@ -79,7 +79,13 @@ Defaults:
 
 If `qa/profile.json` exists, it is loaded automatically. You can also pass `--profile <path>`.
 
-See [profile.example.json](profile.example.json) for the supported shape.
+To get started, copy the template and customize it:
+
+```sh
+cp qa/profile.example.json qa/profile.json
+```
+
+See [profile.example.json](profile.example.json) for the full list of supported fields.
 
 ## Profile Example
 

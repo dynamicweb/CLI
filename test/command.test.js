@@ -50,3 +50,27 @@ test('parseJsonOrPath parses json from a file path', () => {
         fs.rmSync(tempDir, { recursive: true, force: true });
     }
 });
+
+test('parseJsonOrPath throws SyntaxError for a file containing invalid JSON', () => {
+    const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'cli-command-test-'));
+    const jsonPath = path.join(tempDir, 'bad.json');
+
+    try {
+        fs.writeFileSync(jsonPath, '{ not valid json }');
+        assert.throws(() => parseJsonOrPath(jsonPath), SyntaxError);
+    } finally {
+        fs.rmSync(tempDir, { recursive: true, force: true });
+    }
+});
+
+test('parseJsonOrPath throws SyntaxError for a non-existent file path', () => {
+    const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'cli-command-test-'));
+
+    try {
+        const missingPath = path.join(tempDir, 'missing.json');
+        // existsSync returns false, so the path string is passed to JSON.parse directly
+        assert.throws(() => parseJsonOrPath(missingPath), SyntaxError);
+    } finally {
+        fs.rmSync(tempDir, { recursive: true, force: true });
+    }
+});

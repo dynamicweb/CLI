@@ -28,35 +28,19 @@ test('getFileNameFromResponse throws when no file metadata exists', () => {
     );
 });
 
-test('tryGetFileNameFromResponse returns null and stays silent by default', () => {
+test('tryGetFileNameFromResponse returns null and stays silent by default', (t) => {
     const response = createResponse(null);
-    const originalLog = console.log;
-    const calls = [];
-    console.log = (...args) => {
-        calls.push(args);
-    };
+    const mockLog = t.mock.method(console, 'log', () => { });
 
-    try {
-        assert.equal(tryGetFileNameFromResponse(response, '/Files'), null);
-        assert.deepEqual(calls, []);
-    } finally {
-        console.log = originalLog;
-    }
+    assert.equal(tryGetFileNameFromResponse(response, '/Files'), null);
+    assert.equal(mockLog.mock.calls.length, 0);
 });
 
-test('tryGetFileNameFromResponse logs the error message in verbose mode', () => {
+test('tryGetFileNameFromResponse logs the error message in verbose mode', (t) => {
     const response = createResponse(null);
-    const originalLog = console.log;
-    const calls = [];
-    console.log = (...args) => {
-        calls.push(args);
-    };
+    const mockLog = t.mock.method(console, 'log', () => { });
 
-    try {
-        assert.equal(tryGetFileNameFromResponse(response, '/Files', true), null);
-        assert.equal(calls.length, 1);
-        assert.match(String(calls[0][0]), /No files found in directory '\/Files'/);
-    } finally {
-        console.log = originalLog;
-    }
+    assert.equal(tryGetFileNameFromResponse(response, '/Files', true), null);
+    assert.equal(mockLog.mock.calls.length, 1);
+    assert.match(String(mockLog.mock.calls[0].arguments[0]), /No files found in directory '\/Files'/);
 });

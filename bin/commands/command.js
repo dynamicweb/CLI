@@ -8,24 +8,24 @@ const exclude = ['_', '$0', 'command', 'list', 'json', 'verbose', 'v', 'host', '
 
 export function commandCommand() {
     return {
-        command: 'command [command]', 
-        describe: 'Runs the given command', 
+        command: 'command [command]',
+        describe: 'Runs the given command',
         builder: (yargs) => {
             return yargs
-            .positional('command', {
-                describe: 'The command to execute'
-            })
-            .option('json', {
-                describe: 'Literal json or location of json file to send'
-            })
-            .option('list', {
-                alias: 'l',
-                describe: 'Lists all the properties for the command, currently not working'
-            })
-            .option('output', {
-                choices: ['json'],
-                describe: 'Outputs a single JSON response for automation-friendly parsing'
-            })
+                .positional('command', {
+                    describe: 'The command to execute'
+                })
+                .option('json', {
+                    describe: 'Literal json or location of json file to send'
+                })
+                .option('list', {
+                    alias: 'l',
+                    describe: 'Lists all the properties for the command, currently not working'
+                })
+                .option('output', {
+                    choices: ['json'],
+                    describe: 'Outputs a single JSON response for automation-friendly parsing'
+                })
         },
         handler: async (argv) => {
             const output = createCommandOutput(argv);
@@ -69,11 +69,14 @@ export function getQueryParams(argv) {
 
 export function parseJsonOrPath(json) {
     if (!json) return
-    if (fs.existsSync(json)) {
-        return JSON.parse(fs.readFileSync(path.resolve(json)))
-    } else {
-        return JSON.parse(json)
+    const trimmed = json.trim();
+    if (trimmed.startsWith('{') || trimmed.startsWith('[')) {
+        return JSON.parse(trimmed);
     }
+    if (fs.existsSync(json)) {
+        return JSON.parse(fs.readFileSync(path.resolve(json)));
+    }
+    return JSON.parse(json);
 }
 
 async function runCommand(env, user, command, queryParams, data) {

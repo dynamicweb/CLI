@@ -30,11 +30,19 @@ export function getConfig() {
     return localConfig || {};
 }
 
+/**
+ * Overrides the in-memory config for testing.
+ * @param {Object} config - Must be a plain, non-null object; handleConfig writes keys directly onto it.
+ */
 export function setConfigForTests(config) {
+    if (config === null || typeof config !== 'object') {
+        throw new Error('setConfigForTests: config must be a plain object');
+    }
     localConfig = config;
 }
 
 export function handleConfig(argv) {
+    localConfig = localConfig || {};
     Object.keys(argv).forEach(a => {
         if (a != '_' && a != '$0') {
             localConfig[a] = resolveConfig(a, argv[a], localConfig[a] || {});

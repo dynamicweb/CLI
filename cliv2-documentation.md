@@ -25,7 +25,7 @@ Version 2 is an automation-first overhaul. The headline changes:
 
 | v1 | v2 | Notes |
 |----|-----|-------|
-| `--json` | `--output json` | `--json` still works but is deprecated |
+| `--json` (global output flag) | `--output json` | The global `--json` output flag still works but is deprecated. Note: `dw command --json` is a separate, active flag for passing a JSON payload to a command and is **not** deprecated. |
 | `--iamstupid` | `--dangerouslyIncludeLogsAndCache` | `--iamstupid` still works but is deprecated |
 | `--host` (required `--apiKey`) | `--host` (works with `--apiKey` or OAuth) | OAuth credentials are now accepted alongside `--host` |
 | Errors printed to stdout | Errors in `errors` array (JSON) or thrown (non-JSON) | Scripts should check exit codes and/or `ok` field |
@@ -165,7 +165,7 @@ Use `--auth user` to force user authentication even when an environment is confi
 
 ## Automation and JSON output
 
-Commands that talk to the Management API -- `env`, `login`, `files`, `query`, `command`, and `install` -- support `--output json`. This returns a structured envelope instead of human-readable console output:
+Commands that talk to the Management API -- `env`, `login`, `files`, `query`, `command`, and `install` -- support `--output json`. The `database`, `swift`, and `config` commands do not support `--output json`. This returns a structured envelope instead of human-readable console output:
 
 ```json
 {
@@ -695,6 +695,9 @@ dw command <command> --json ./payload.json [options]
 
 The `--json` flag accepts either an inline JSON string or a path to a `.json` file.
 
+> [!NOTE]
+> The `--json` flag here is specific to the `command` subcommand and passes a payload to the Management API. It is **not** the same as the deprecated global `--json` output flag (replaced by `--output json`).
+
 **Examples:**
 
 ```sh
@@ -770,6 +773,9 @@ Queued installation ensures all dependencies are in place before any add-in is a
 
 Export the current environment's database to a `.bacpac` file.
 
+> [!NOTE]
+> `database` does not support `--output json`.
+
 ```sh
 dw database ./backups --export
 ```
@@ -786,6 +792,9 @@ GO
 ### swift
 
 Download a Swift release from GitHub.
+
+> [!NOTE]
+> `swift` does not support `--output json`.
 
 ```sh
 dw swift [outPath] [options]
@@ -809,6 +818,9 @@ dw swift . --nightly --force           # download the latest nightly build
 ### config
 
 Write values directly into `~/.dwc` using dot-notation paths.
+
+> [!NOTE]
+> `config` does not support `--output json`.
 
 ```sh
 dw config --env.dev.host localhost:6001
