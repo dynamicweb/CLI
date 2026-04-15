@@ -27,7 +27,11 @@ export function setupConfig() {
 }
 
 export function getConfig() {
-    return localConfig;
+    return localConfig || {};
+}
+
+export function setConfigForTests(config) {
+    localConfig = config;
 }
 
 export function handleConfig(argv) {

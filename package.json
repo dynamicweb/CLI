@@ -2,7 +2,7 @@
   "name": "@dynamicweb/cli",
   "type": "module",
   "description": "CLI for interacting with Dynamicweb 10 solutions from the command line.",
-  "version": "2.0.0-beta.0",
+  "version": "2.0.0-beta.1",
   "main": "bin/index.js",
   "files": [
     "bin/**"
@@ -15,7 +15,8 @@
     "devops"
   ],
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "node --test",
+    "qa:smoke": "node qa/run-smoke.mjs"
   },
   "author": "Dynamicweb A/S (https://www.dynamicweb.com)",
   "repository": {

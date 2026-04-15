@@ -61,13 +61,13 @@ async function getProperties(env, user, command) {
     throw createCommandError('The --list option is not currently implemented for commands.');
 }
 
-function getQueryParams(argv) {
+export function getQueryParams(argv) {
     let params = {}
     Object.keys(argv).filter(k => !exclude.includes(k)).forEach(k => params['Command.' + k] = argv[k])
     return params
 }
 
-function parseJsonOrPath(json) {
+export function parseJsonOrPath(json) {
     if (!json) return
     if (fs.existsSync(json)) {
         return JSON.parse(fs.readFileSync(path.resolve(json)))

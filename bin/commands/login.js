@@ -216,7 +216,7 @@ async function login(username, password, env, protocol, verbose) {
     }
 }
 
-function parseCookies (cookieHeader) {
+export function parseCookies (cookieHeader) {
     const list = {};
     if (!cookieHeader) {
         return list;
@@ -415,7 +415,7 @@ async function authenticateWithOAuth(argv, env) {
     };
 }
 
-function shouldUseOAuth(argv, env = {}) {
+export function shouldUseOAuth(argv, env = {}) {
     if (argv.auth === 'user') {
         return false;
     }
@@ -435,7 +435,7 @@ function shouldUseOAuth(argv, env = {}) {
     return env?.auth?.type === 'oauth_client_credentials';
 }
 
-function resolveOAuthConfig(argv, env = {}, requireCredentials = true) {
+export function resolveOAuthConfig(argv, env = {}, requireCredentials = true) {
     const authConfig = env?.auth || {};
     const clientIdEnv = argv.clientIdEnv || authConfig.clientIdEnv || DEFAULT_CLIENT_ID_ENV;
     const clientSecretEnv = argv.clientSecretEnv || authConfig.clientSecretEnv || DEFAULT_CLIENT_SECRET_ENV;

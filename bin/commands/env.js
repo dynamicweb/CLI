@@ -22,6 +22,26 @@ export function getAgent(protocol) {
     return protocol === 'http' ? httpAgent : httpsAgent;
 }
 
+export function parseHostInput(hostValue) {
+    const hostSplit = hostValue.split('://');
+
+    if (hostSplit.length === 1) {
+        return {
+            protocol: 'https',
+            host: hostSplit[0]
+        };
+    }
+
+    if (hostSplit.length === 2) {
+        return {
+            protocol: hostSplit[0],
+            host: hostSplit[1]
+        };
+    }
+
+    throw createCommandError(`Issues resolving host ${hostValue}`);
+}
+
 export function envCommand() {
     return {
         command: 'env [env]',
@@ -61,7 +81,9 @@ export function envCommand() {
     }
 }
 
-export async function setupEnv(argv, output = null) {
+export async function setupEnv(argv, output = null, deps = {}) {
+    const interactiveEnvFn = deps.interactiveEnvFn || interactiveEnv;
+    const cfg = getConfig();
     let env = {};
     let askEnv = true;
 
@@ -75,8 +97,8 @@ export async function setupEnv(argv, output = null) {
         }
     }
 
-    if (askEnv && getConfig().env) {
-        env = getConfig().env[argv.env] || getConfig().env[getConfig()?.current?.env];
+    if (askEnv && cfg.env) {
+        env = cfg.env[argv.env] || cfg.env[cfg?.current?.env];
         if (env && !env.protocol) {
             logMessage(argv, 'Protocol for environment not set, defaulting to https');
             env.protocol = 'https';
@@ -88,7 +110,7 @@ export async function setupEnv(argv, output = null) {
         }
 
         logMessage(argv, 'Current environment not set, please set it');
-        await interactiveEnv(argv, {
+        await interactiveEnvFn(argv, {
             environment: {
                 type: 'input'
             },
@@ -96,7 +118,8 @@ export async function setupEnv(argv, output = null) {
                 default: true
             }
         }, output)
-        env = getConfig().env[getConfig()?.current?.env];
+        const updatedConfig = getConfig();
+        env = updatedConfig.env?.[updatedConfig?.current?.env];
     }
 
     if (!env || Object.keys(env).length === 0) {
@@ -160,16 +183,9 @@ export async function interactiveEnv(argv, options, output) {
     }
     getConfig().env[result.environment] = getConfig().env[result.environment] || {};
     if (result.host) {
-        const hostSplit = result.host.split("://");
-        if (hostSplit.length == 1) {
-            getConfig().env[result.environment].protocol = 'https';
-            getConfig().env[result.environment].host = hostSplit[0];
-        } else if (hostSplit.length == 2) {
-            getConfig().env[result.environment].protocol = hostSplit[0];
-            getConfig().env[result.environment].host = hostSplit[1];
-        } else {
-            throw createCommandError(`Issues resolving host ${result.host}`);
-        }
+        const resolvedHost = parseHostInput(result.host);
+        getConfig().env[result.environment].protocol = resolvedHost.protocol;
+        getConfig().env[result.environment].host = resolvedHost.host;
     }
     if (result.environment) {
         getConfig().current = getConfig().current || {};
