@@ -10,102 +10,102 @@ import { extractWithProgress } from '../extractor.js';
 
 export function filesCommand() {
     return {
-        command: 'files [dirPath] [outPath]', 
-        describe: 'Handles files', 
+        command: 'files [dirPath] [outPath]',
+        describe: 'Handles files',
         builder: (yargs) => {
             return yargs
-            .positional('dirPath', {
-                describe: 'The directory to list or export'
-            })
-            .positional('outPath', {
-                describe: 'The directory to export the specified directory to',
-                default: '.'
-            })
-            .option('list', {
-                alias: 'l',
-                type: 'boolean',
-                describe: 'Lists all directories and files'
-            })
-            .option('export', {
-                alias: 'e',
-                type: 'boolean',
-                describe: 'Exports the specified directory and all subdirectories at [dirPath] to [outPath]'
-            })
-            .option('import', {
-                alias: 'i',
-                type: 'boolean',
-                describe: 'Imports the file at [dirPath] to [outPath]'
-            })
-            .option('overwrite', {
-                alias: 'o',
-                type: 'boolean',
-                describe: 'Used with import, will overwrite existing files at destination if set to true'
-            })
-            .option('createEmpty', {
-                type: 'boolean',
-                describe: 'Used with import, will create a file even if its empty'
-            })
-            .option('includeFiles', {
-                alias: 'f',
-                type: 'boolean',
-                describe: 'Used with export, includes files in list of directories and files'
-            })
-            .option('recursive', {
-                alias: 'r',
-                type: 'boolean',
-                describe: 'Used with list, import and export, handles all directories recursively'
-            })
-            .option('raw', {
-                type: 'boolean',
-                describe: 'Used with export, keeps zip file instead of unpacking it'
-            })
-            .option('dangerouslyIncludeLogsAndCache', {
-                type: 'boolean',
-                describe: 'Includes log and cache folders during export. Risky and usually not recommended'
-            })
-            .option('iamstupid', {
-                type: 'boolean',
-                hidden: true,
-                describe: 'Deprecated alias for --dangerouslyIncludeLogsAndCache'
-            })
-            .option('delete', {
-                alias: 'd',
-                type: 'boolean',
-                describe: 'Deletes the file or directory at [dirPath]. Detects type from path (use --asFile/--asDirectory to override)'
-            })
-            .option('empty', {
-                type: 'boolean',
-                describe: 'Used with --delete, empties a directory instead of deleting it'
-            })
-            .option('copy', {
-                type: 'string',
-                describe: 'Copies the file or directory at [dirPath] to the given destination path'
-            })
-            .option('move', {
-                type: 'string',
-                describe: 'Moves the file or directory at [dirPath] to the given destination path'
-            })
-            .option('asFile', {
-                type: 'boolean',
-                alias: 'af',
-                describe: 'Forces the command to treat the path as a single file, even if it has no extension.',
-                conflicts: 'asDirectory'
-            })
-            .option('asDirectory', {
-                type: 'boolean',
-                alias: 'ad',
-                describe: 'Forces the command to treat the path as a directory, even if its name contains a dot.',
-                conflicts: 'asFile'
-            })
-            .option('output', {
-                choices: ['json'],
-                describe: 'Outputs a single JSON response for automation-friendly parsing'
-            })
-            .option('json', {
-                type: 'boolean',
-                hidden: true,
-                describe: 'Deprecated alias for --output json'
-            })
+                .positional('dirPath', {
+                    describe: 'The directory to list or export'
+                })
+                .positional('outPath', {
+                    describe: 'The directory to export the specified directory to',
+                    default: '.'
+                })
+                .option('list', {
+                    alias: 'l',
+                    type: 'boolean',
+                    describe: 'Lists all directories and files'
+                })
+                .option('export', {
+                    alias: 'e',
+                    type: 'boolean',
+                    describe: 'Exports the specified directory and all subdirectories at [dirPath] to [outPath]'
+                })
+                .option('import', {
+                    alias: 'i',
+                    type: 'boolean',
+                    describe: 'Imports the file at [dirPath] to [outPath]'
+                })
+                .option('overwrite', {
+                    alias: 'o',
+                    type: 'boolean',
+                    describe: 'Used with import, will overwrite existing files at destination if set to true'
+                })
+                .option('createEmpty', {
+                    type: 'boolean',
+                    describe: 'Used with import, will create a file even if its empty'
+                })
+                .option('includeFiles', {
+                    alias: 'f',
+                    type: 'boolean',
+                    describe: 'Used with export, includes files in list of directories and files'
+                })
+                .option('recursive', {
+                    alias: 'r',
+                    type: 'boolean',
+                    describe: 'Used with list, import and export, handles all directories recursively'
+                })
+                .option('raw', {
+                    type: 'boolean',
+                    describe: 'Used with export, keeps zip file instead of unpacking it'
+                })
+                .option('dangerouslyIncludeLogsAndCache', {
+                    type: 'boolean',
+                    describe: 'Includes log and cache folders during export. Risky and usually not recommended'
+                })
+                .option('iamstupid', {
+                    type: 'boolean',
+                    hidden: true,
+                    describe: 'Deprecated alias for --dangerouslyIncludeLogsAndCache'
+                })
+                .option('delete', {
+                    alias: 'd',
+                    type: 'boolean',
+                    describe: 'Deletes the file or directory at [dirPath]. Detects type from path (use --asFile/--asDirectory to override)'
+                })
+                .option('empty', {
+                    type: 'boolean',
+                    describe: 'Used with --delete, empties a directory instead of deleting it'
+                })
+                .option('copy', {
+                    type: 'string',
+                    describe: 'Copies the file or directory at [dirPath] to the given destination path'
+                })
+                .option('move', {
+                    type: 'string',
+                    describe: 'Moves the file or directory at [dirPath] to the given destination path'
+                })
+                .option('asFile', {
+                    type: 'boolean',
+                    alias: 'af',
+                    describe: 'Forces the command to treat the path as a single file, even if it has no extension.',
+                    conflicts: 'asDirectory'
+                })
+                .option('asDirectory', {
+                    type: 'boolean',
+                    alias: 'ad',
+                    describe: 'Forces the command to treat the path as a directory, even if its name contains a dot.',
+                    conflicts: 'asFile'
+                })
+                .option('output', {
+                    choices: ['json'],
+                    describe: 'Outputs a single JSON response for automation-friendly parsing'
+                })
+                .option('json', {
+                    type: 'boolean',
+                    hidden: true,
+                    describe: 'Deprecated alias for --output json'
+                })
         },
         handler: async (argv) => {
             if (argv.json && !argv.output) {
@@ -149,13 +149,13 @@ async function handleFiles(argv, output) {
 
     if (argv.export) {
         if (argv.dirPath) {
-            
+
             const isFile = isFilePath(argv, argv.dirPath);
 
             if (isFile) {
-                let parentDirectory = path.dirname(argv.dirPath);              
+                let parentDirectory = path.dirname(argv.dirPath);
                 parentDirectory = parentDirectory === '.' ? '/' : parentDirectory;
-                
+
                 await download(env, user, parentDirectory, argv.outPath, false, null, true, argv.dangerouslyIncludeLogsAndCache, [argv.dirPath], true, output);
             } else {
                 await download(env, user, argv.dirPath, argv.outPath, true, null, argv.raw, argv.dangerouslyIncludeLogsAndCache, [], false, output);
@@ -231,9 +231,9 @@ async function handleFiles(argv, output) {
 }
 
 function getFilesInDirectory(dirPath) {
-    return fs.statSync(dirPath).isFile() ? [ dirPath ] : fs.readdirSync(dirPath)
-            .map(file => path.join(dirPath, file))
-            .filter(file => fs.statSync(file).isFile());
+    return fs.statSync(dirPath).isFile() ? [dirPath] : fs.readdirSync(dirPath)
+        .map(file => path.join(dirPath, file))
+        .filter(file => fs.statSync(file).isFile());
 }
 
 async function processDirectory(env, user, dirPath, outPath, originalDir, createEmpty, isRoot = false, overwrite = false, output) {
@@ -242,8 +242,8 @@ async function processDirectory(env, user, dirPath, outPath, originalDir, create
         await uploadFiles(env, user, filesInDir, isRoot ? outPath : path.join(outPath, path.basename(dirPath)), createEmpty, overwrite, output);
 
     const subDirectories = fs.readdirSync(dirPath)
-                            .map(subDir => path.join(dirPath, subDir))
-                            .filter(subDir => fs.statSync(subDir).isDirectory());
+        .map(subDir => path.join(dirPath, subDir))
+        .filter(subDir => fs.statSync(subDir).isDirectory());
     for (let subDir of subDirectories) {
         await processDirectory(env, user, subDir, isRoot ? outPath : path.join(outPath, path.basename(dirPath)), originalDir, createEmpty, false, overwrite, output);
     }
@@ -278,7 +278,7 @@ function resolveTree(dirs, indentLevel, parentHasFiles, output) {
             resolveTree(dir.files?.data ?? [], indentLevel + '│\t', false, output);
         } else {
             resolveTree(dir.directories ?? [], indentLevel + '\t', hasFiles, output);
-            resolveTree(dir.files?.data ?? [], indentLevel + '\t', false, output);  
+            resolveTree(dir.files?.data ?? [], indentLevel + '\t', false, output);
         }
     }
 }
@@ -397,10 +397,8 @@ async function extractArchive(filename, filePath, outPath, raw, output) {
     }
     output.log(`Finished extracting ${filename} to ${outPath}\n`);
 
-    fs.unlink(filePath, function(err) {
-        if (err) {
-            output.verboseLog(`Warning: Failed to delete temporary archive ${filePath}: ${err.message}`);
-        }
+    await fs.promises.unlink(filePath).catch(err => {
+        output.verboseLog(`Warning: Failed to delete temporary archive ${filePath}: ${err.message}`);
     });
 }
 
@@ -577,13 +575,13 @@ async function uploadChunk(env, user, filePathsChunk, destinationPath, createEmp
     form.append('path', destinationPath);
     form.append('skipExistingFiles', String(!overwrite));
     form.append('allowOverwrite', String(overwrite));
-    
+
     filePathsChunk.forEach(fileToUpload => {
         output.log(`${fileToUpload}`)
         form.append('files', fs.createReadStream(path.resolve(fileToUpload)));
     });
 
-    const res = await fetch(`${env.protocol}://${env.host}/Admin/Api/Upload?` + new URLSearchParams({"createEmptyFiles": createEmpty, "createMissingDirectories": true}), {
+    const res = await fetch(`${env.protocol}://${env.host}/Admin/Api/Upload?` + new URLSearchParams({ "createEmptyFiles": createEmpty, "createMissingDirectories": true }), {
         method: 'POST',
         body: form,
         headers: {
@@ -591,7 +589,7 @@ async function uploadChunk(env, user, filePathsChunk, destinationPath, createEmp
         },
         agent: getAgent(env.protocol)
     });
-    
+
     if (res.ok) {
         return await res.json();
     }
@@ -604,8 +602,7 @@ export function resolveFilePath(filePath) {
     let p = path.parse(path.resolve(filePath))
     let regex = wildcardToRegExp(p.base);
     let resolvedPath = fs.readdirSync(p.dir).filter((allFilesPaths) => allFilesPaths.match(regex) !== null)[0]
-    if (resolvedPath === undefined)
-    {
+    if (resolvedPath === undefined) {
         throw createCommandError(`Could not find any files with the name ${filePath}`, 1);
     }
     return path.join(p.dir, resolvedPath);

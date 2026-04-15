@@ -23,6 +23,10 @@ export function getAgent(protocol) {
 }
 
 export function parseHostInput(hostValue) {
+    if (!hostValue || typeof hostValue !== 'string' || !hostValue.trim()) {
+        throw createCommandError(`Invalid host value: ${hostValue}`);
+    }
+    hostValue = hostValue.trim();
     const hostSplit = hostValue.split('://');
 
     if (hostSplit.length === 1) {
@@ -142,7 +146,9 @@ async function handleEnv(argv, output) {
         output.log(`Users in environment ${env}: ${users}`);
     } else if (argv.env) {
         const result = await changeEnv(argv, output);
-        output.addData(result);
+        if (result !== null) {
+            output.addData(result);
+        }
     } else if (argv.list) {
         const environments = Object.keys(getConfig().env || {});
         output.addData({ environments });
@@ -198,7 +204,7 @@ export async function interactiveEnv(argv, options, output) {
     const currentEnv = getConfig().env[result.environment];
     const data = {
         environment: result.environment,
-        protocol: currentEnv.protocol,
+        protocol: currentEnv.protocol || null,
         host: currentEnv.host || null,
         current: getConfig().current.env
     };
@@ -213,13 +219,13 @@ export async function interactiveEnv(argv, options, output) {
 async function changeEnv(argv, output) {
     const environments = getConfig().env || {};
 
-    if (!Object.keys(environments).includes(argv.env)) {
+    if (!Object.hasOwn(environments, argv.env)) {
         if (isJsonOutput(argv)) {
             throw createCommandError(`The specified environment ${argv.env} doesn't exist, please create it`, 404);
         }
 
         logMessage(argv, `The specified environment ${argv.env} doesn't exist, please create it`);
-        return await interactiveEnv(argv, {
+        await interactiveEnv(argv, {
             environment: {
                 type: 'input',
                 default: argv.env,
@@ -234,6 +240,7 @@ async function changeEnv(argv, output) {
                 default: true
             }
         }, output)
+        return null;
     } else {
         getConfig().current.env = argv.env;
         updateConfig();
@@ -242,7 +249,10 @@ async function changeEnv(argv, output) {
             current: getConfig().current.env
         };
         logMessage(argv, `Your current environment is now ${getConfig().current.env}`);
-        return data;
+        if (output) {
+            output.addData(data);
+        }
+        return null;
     }
 }
 

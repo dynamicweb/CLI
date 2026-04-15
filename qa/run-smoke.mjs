@@ -668,12 +668,15 @@ async function runCli(logName, cliArgs, options = {}) {
         stderr += chunk.toString();
     });
 
+    let exited = false;
+    child.on('exit', () => { exited = true; });
+
     const timeoutHandle = setTimeout(() => {
         stderr += `\nProcess timed out after ${timeoutMs} ms.`;
         child.kill('SIGTERM');
 
         setTimeout(() => {
-            if (!child.killed) {
+            if (!exited) {
                 child.kill('SIGKILL');
             }
         }, 5000).unref();

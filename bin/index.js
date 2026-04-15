@@ -84,8 +84,12 @@ function baseCommand() {
             } else if (currentEnv?.current?.user) {
                 console.log(`User: ${currentEnv.current.user}`);
             }
-            console.log(`Protocol: ${currentEnv.protocol}`);
-            console.log(`Host: ${currentEnv.host}`);
+            if (currentEnv.protocol) {
+                console.log(`Protocol: ${currentEnv.protocol}`);
+            }
+            if (currentEnv.host) {
+                console.log(`Host: ${currentEnv.host}`);
+            }
         }
     }
 }
