@@ -1,244 +1,486 @@
 # DynamicWeb CLI
 
-## What is it?
-DynamicWeb CLI is a powerful command line tool designed to help developers quickly and efficiently manage any given DynamicWeb 10 solution they may have access to. These tools include an easy setup and handling of different environments, access to the Management API and an easy way to update a Swift solution.
+DynamicWeb CLI is the command-line interface for working with DynamicWeb 10 solutions. It helps you manage environments, authenticate against the admin API, run queries and commands, move files in and out of a solution, install add-ins, export databases, and pull Swift solutions.
 
-Logging into a DynamicWeb 10 solution through the DynamicWeb CLI will create an API Key for the given user, which in turn lets you use any Queries and Commands the solution had, meaning you can control everything you can do in the backend, from your command line.
-With this, you can hook it up to your own build pipelines and processes, if certain requests needs to happen before or after deployments or changes.
+This branch now targets `2.0.0-beta.0`.
 
-The DynamicWeb CLI can also help with active development of custom addins to solutions. With a simple `dw install` command it will upload and install your custom code to a solution.
+## Requirements
 
-Extracting files from solutions is just as easy as well, with the DynamicWeb CLI you can list out the structure of a solution and get full exports of the files structure and the database. Importing files into a solution is just as easy as well, as long as you have access to the files and the solution, they can be imported with a simple command using the DynamicWeb CLI.
+- Node.js `>=20.12.0`
 
-## Get started
-### Install from npm
-Install the published CLI globally:
-> $ npm install -g @dynamicweb/cli
+## Install
 
-Then verify the command is available:
-> $ dw --help
+Install from npm:
 
-### Install from source
-If you're working on the CLI locally, clone the repository, move into the project directory, and run:
-> $ npm install
->
-> $ npm install -g .
+```sh
+npm install -g @dynamicweb/cli
+dw --help
+```
 
-This installs dependencies for development and links the current checkout as the global `dw` command.
+Install from source:
 
-### Publish a new version
-Before publishing, make sure the version in `package.json` has been bumped:
-> $ npm version patch
+```sh
+npm install
+npm install -g .
+```
 
-Log in to npm and publish the scoped package publicly:
-> $ npm login
->
-> $ npm publish --access public
+## What Changed
 
-## Commands
-All commands and options can be viewed by running
-> $ dw --help
-> 
-> $ dw \<command\> --help
+The `2.0` beta is a substantial overhaul focused on automation and modern authentication.
 
-### Global options
-Most commands support the following global options:
-- `-v` `--verbose`    Run with verbose logging
-- `--host`            Set the host directly, bypassing environment config (requires `--apiKey`)
-- `--apiKey`          Set the API key for an environmentless execution
-- `--protocol`        Set the protocol used (only with `--host`, defaults to `https`)
+- Automation-first command output: `env`, `login`, `files`, `query`, `command`, and `install` now support `--output json` so scripts and pipelines can consume structured results instead of plain console logs.
+- OAuth client credentials support: the CLI can now authenticate with OAuth 2.0 `client_credentials`, which makes headless and CI/CD usage much easier.
+- Better environment handling: protocol, host, and auth details are stored more cleanly in `~/.dwc`, while one-off runs can still override host and credentials directly.
+- Improved file workflows: file import, export, recursive sync, raw archive export, progress reporting, and source-type override flags make file operations more predictable.
+- Clearer error reporting: commands can now return structured failures in JSON mode, which is much easier to handle in automation.
 
-### Users and environments
-As most commands are pulling or pushing data from the DW admin API, the necessary authorization is required.
+## Quick Start
 
-To generate an Api-key that the CLI will use, login to your environment
-> $ dw login
+View all available commands:
 
-This will start an interactive session asking for username and password, as well as the name of the environment, so it's possible to switch between different environments easily.
-It will also ask for a host, if you're running a local environment, set this to the host it starts up with, i.e `localhost:6001`.
+```sh
+dw --help
+dw <command> --help
+```
 
-Each environment has its own users, and each user has its own Api-key assigned to it, swap between environments by using
-> $ dw env \<env\>
+Set up an environment and log in with a user:
 
-and swap between users by simply supplying the name of the user in the login command
-> $ dw login \<username\>
+```sh
+dw env dev
+dw login
+dw          # shows current environment, user, protocol, and host
+```
 
-You can view the current environment and user being used by simply typing
-> $ dw
+Run a query:
 
-The configuration will automatically be created when setting up your first environment, but if you already have an Api-key you want to use for a user, you can modify the config directly in the file located in `~/.dwc`. The structure should look like the following
+```sh
+dw query HealthCheck
+```
+
+## Authentication
+
+### Interactive User Login
+
+The default login flow uses a DynamicWeb user account. The CLI logs in, creates an API key, and stores it in `~/.dwc`.
+
+```sh
+dw login
+dw login <saved-user>
+dw env <environment>
+```
+
+A user-authenticated config typically looks like this:
+
 ```json
 {
-    "env": {
-        "dev": {
-            "host": "localhost:6001",
-            "users": {
-                "DemoUser": {
-                    "apiKey": "<keyPrefix>.<key>"
-                }
-            },
-            "current": {
-                "user": "DemoUser"
-            }
+  "env": {
+    "dev": {
+      "host": "localhost:6001",
+      "protocol": "https",
+      "users": {
+        "DemoUser": {
+          "apiKey": "<keyPrefix>.<key>"
         }
-    },
-    "current": {
-        "env": "dev"
+      },
+      "current": {
+        "user": "DemoUser",
+        "authType": "user"
+      }
     }
+  },
+  "current": {
+    "env": "dev"
+  }
 }
 ```
 
-### Files
-> $ dw files \<dirPath\> \<outPath\>
+### OAuth Client Credentials
 
-The files command is used to list out and export the structure in your Dynamicweb files archive, as such is has multiple options;
-- `-l` `--list`         This will list the directory given in \<dirPath\>
-- `-f` `--includeFiles` The list will now also show all files in the directories
-- `-r` `--recursive`    By default it only handles the \<dirPath\>, but with this option it will handle all directories under this recursively
-- `-e` `--export`       It will export \<dirPath\> into \<outPath\> on your local machine, unzipped by default
-- `--raw`             This will keep the content zipped
-- `--iamstupid`       This will include the export of the /files/system/log and /files/.cache folders
+For service accounts, automation, and headless usage, the CLI also supports OAuth 2.0 `client_credentials`.
 
-#### Examples
-Exporting all templates from current environment to local solution
-> $ cd DynamicWebSolution/Files
-> 
-> $ dw files templates ./templates -fre
+Configure an environment for OAuth:
 
-Listing the system files structure of the current environment
-> $ dw files system -lr
+```sh
+export DW_CLIENT_ID=my-client-id
+export DW_CLIENT_SECRET=my-client-secret
 
-### Files Source Type Detection
-By default, the `dw files` command automatically detects the source type based on the \<dirPath\>:
-If the path contains a file extension (e.g., 'templates/Translations.xml'), it is treated as a file.
-Otherwise, it is treated as a directory.
-In cases where this detection is incorrect, you can force the type using these flags:
-
-- `-ad` `--asDirectory`  Forces the command to treat the path as a directory, even if its name contains a dot.
-- `-af` `--asFile`       Forces the command to treat the path as a single file, even if it has no extension. 
-
-#### Examples
-
-Exporting single file from current environment to local solution
-> $ dw files templates/Translations.xml ./templates -e
-
-Exporting a directory that looks like a file
-> $ dw files templates/templates.v1 ./templates -e -ad
-
-Exporting a file that has no extension
-> $ dw files templates/testfile ./templates -e -af
-
-### Swift
-> $ dw swift \<outPath\>
-
-The swift command is used to easily get your local environment up to date with the latest swift release. It will override all existing directories and content in those, which can then be adjusted in your source control afterwards. It has multiple options to specify which tag or branch to pull;
-- `-t` `--tag <tag>`  The tag/branch/release to pull
-- `-l` `--list`         Will list all the release versions
-- `-n` `--nightly`      Will pull #HEAD, as default is latest release
-- `--force`           Used if \<outPath\> is not an empty folder, to override all the content
-
-#### Examples
-Getting all the available releases
-> $ dw swift -l
-
-Pulling and overriding local solution with latest nightly build
-> $ cd DynamicWebSolution/Swift
-> 
-> $ dw swift . -n --force
-
-### Query
-> $ dw query \<query\>
-
-The query command will fire any query towards the admin Api with the given query parameters. This means any query parameter that's necessary for the given query, is required as an option in this command. It's also possible to list which parameters is necessary for the given query through the options;
-- `-l` `--list`         Will list all the properties for the given \<query\>
-- `-i` `--interactive`  Will perform the \<query\> but without any parameters, as they will be asked for one by one in interactive mode
-- `--<queryParam>`  Any parameter the query needs will be sent by '--key value'
-
-#### Examples
-Getting all properties for a query
-> $ dw query FileByName -l
-
-Getting file information on a specific file by name
-> $ dw query FileByName --name DefaultMail.html --directorypath /Templates/Forms/Mail
-
-### Command
-> $ dw command \<command\>
-
-Using command will, like query, fire any given command in the solution. It works like query, given the query parameters necessary, however if a `DataModel` is required for the command, it is given in a json-format, either through a path to a .json file or a literal json-string in the command.
-- `-l` `--list` Lists all the properties for the command, as well as the json model required
-- `--json` Takes a path to a .json file or a literal json, i.e --json '{ abc: "123" }'
-
-#### Examples
-Creating a copy of a page using a json-string
-> $ dw command PageCopy --json '{ "model": { "SourcePageId": 1189, "DestinationParentPageId": 1129 } }'
-
-Removing a page using a json file
-> $ dw command PageMove --json ./PageMove.json
-
-Where PageMove.json contains
-```json
-{ "model": { "SourcePageId": 1383, "DestinationParentPageId": 1376 } }
+dw login --oauth
 ```
 
-Deleting a page
-> $ dw command PageDelete --json '{ "id": "1383" }'
+Run a one-off command with OAuth flags instead of saved config:
 
-### Install
-> $ dw install \<filePath\>
+```sh
+dw query HealthCheck \
+  --host your-solution.example.com \
+  --auth oauth \
+  --clientIdEnv DW_CLIENT_ID \
+  --clientSecretEnv DW_CLIENT_SECRET \
+  --output json
+```
 
-Install is somewhat of a shorthand for a few commands. It will upload and install a given .dll or .nupkg addin to your current environment.
+An OAuth-enabled environment in `~/.dwc` looks like this:
 
-It's meant to be used to easily apply custom dlls to a given project, it being local or otherwise, so after having a dotnet library built locally, this command can be run, pointing to the built .dll and it will handle the rest with all the addin installation, and it will be available in the DynamicWeb solution as soon as the command finishes.
+```json
+{
+  "env": {
+    "dev": {
+      "host": "localhost:6001",
+      "protocol": "https",
+      "auth": {
+        "type": "oauth_client_credentials",
+        "clientIdEnv": "DW_CLIENT_ID",
+        "clientSecretEnv": "DW_CLIENT_SECRET"
+      },
+      "current": {
+        "authType": "oauth_client_credentials"
+      }
+    }
+  },
+  "current": {
+    "env": "dev"
+  }
+}
+```
 
-#### Examples
-> $ dw install ./bin/Release/net10.0/CustomProject.dll
+## Global Options
 
-### Database
-> $ dw database \<outPath\>
+Most API-driven commands support these global options:
 
-This command is used for various actions towards your current environments database.
-- `-e` `--export`       Exports your current environments database to a .bacpac file at \<outPath\>
+- `-v`, `--verbose`: enable verbose logging
+- `--host`: use a host directly instead of the saved environment
+- `--protocol`: set the protocol used with `--host` and default to `https`
+- `--apiKey`: use an API key for environmentless execution
+- `--auth`: override authentication mode with `user` or `oauth`
+- `--clientId`: pass an OAuth client ID directly
+- `--clientSecret`: pass an OAuth client secret directly
+- `--clientIdEnv`: read the OAuth client ID from an environment variable
+- `--clientSecretEnv`: read the OAuth client secret from an environment variable
 
-#### Examples
-> $ dw database -e ./backup
+## JSON Output for Automation
 
-### Config
-> $ dw config
+Commands that support `--output json` return a machine-readable envelope with `ok`, `status`, `data`, `errors`, and `meta` fields.
 
-Config is used to manage the .dwc file through the CLI, given any prop it will create the key/value with the path to it.
-- `--<property>`  The path and name of the property to set
+Examples:
 
-#### Examples
-Changing the host for the dev environment
-> $ dw config --env.dev.host localhost:6001
+```sh
+dw env --list --output json
+dw login --output json
+dw query FileByName --name DefaultMail.html --output json
+```
+
+Representative output:
+
+```json
+{
+  "ok": true,
+  "command": "env",
+  "operation": "list",
+  "status": 200,
+  "data": [
+    {
+      "environments": ["dev", "staging"]
+    }
+  ],
+  "errors": [],
+  "meta": {}
+}
+```
+
+## Commands
+
+### `dw env [env]`
+
+Create, select, or inspect saved environments.
+
+```sh
+dw env dev
+dw env --list
+dw env --users
+dw env --list --output json
+```
+
+Example JSON output:
+
+```json
+{
+  "ok": true,
+  "command": "env",
+  "operation": "select",
+  "status": 200,
+  "data": [
+    {
+      "environment": "dev",
+      "current": "dev"
+    }
+  ],
+  "errors": [],
+  "meta": {}
+}
+```
+
+### `dw login [user]`
+
+Log in interactively, configure OAuth, or switch between saved users for the current environment.
+
+```sh
+dw login
+dw login DemoUser
+dw login --oauth
+dw login --output json
+```
+
+Example JSON output:
+
+```json
+{
+  "ok": true,
+  "command": "login",
+  "operation": "oauth-login",
+  "status": 200,
+  "data": [
+    {
+      "environment": "dev",
+      "authType": "oauth_client_credentials",
+      "clientIdEnv": "DW_CLIENT_ID",
+      "clientSecretEnv": "DW_CLIENT_SECRET",
+      "expires": "2026-04-13T14:22:31Z"
+    }
+  ],
+  "errors": [],
+  "meta": {}
+}
+```
+
+### `dw files [dirPath] [outPath]`
+
+List, export, and import files from the DynamicWeb file archive.
+
+Useful flags:
+
+- `-l`, `--list`: list directories
+- `-f`, `--includeFiles`: include files in listings
+- `-e`, `--export`: export from the environment to disk
+- `-i`, `--import`: import from disk to the environment
+- `-r`, `--recursive`: recurse through subdirectories
+- `--raw`: keep downloaded archives zipped
+- `--dangerouslyIncludeLogsAndCache`: include log and cache folders during export, which is risky and usually not recommended
+- `-af`, `--asFile`: force the source path to be treated as a file
+- `-ad`, `--asDirectory`: force the source path to be treated as a directory
+
+Examples:
+
+```sh
+dw files templates ./templates -fre
+dw files system -lr
+dw files templates/Translations.xml ./templates -e
+dw files templates/templates.v1 ./templates -e -ad
+dw files ./Files templates -i -r --output json
+```
+
+Example JSON output:
+
+```json
+{
+  "ok": true,
+  "command": "files",
+  "operation": "import",
+  "status": 200,
+  "data": [
+    {
+      "type": "upload",
+      "destinationPath": "templates",
+      "files": [
+        "/workspace/Files/Templates/DefaultMail.html"
+      ],
+      "response": {
+        "message": "Upload completed"
+      }
+    }
+  ],
+  "errors": [],
+  "meta": {
+    "filesProcessed": 1,
+    "chunks": 1
+  }
+}
+```
+
+### `dw query [query]`
+
+Run admin API queries, inspect available parameters, or prompt for them interactively.
+
+```sh
+dw query FileByName -l
+dw query FileByName --name DefaultMail.html --directorypath /Templates/Forms/Mail
+dw query FileByName --interactive
+dw query FileByName --name DefaultMail.html --output json
+```
+
+Example JSON output:
+
+```json
+{
+  "ok": true,
+  "command": "query",
+  "operation": "run",
+  "status": 200,
+  "data": [
+    {
+      "name": "DefaultMail.html",
+      "path": "/Templates/Forms/Mail/DefaultMail.html"
+    }
+  ],
+  "errors": [],
+  "meta": {
+    "query": "FileByName"
+  }
+}
+```
+
+### `dw command [command]`
+
+Run admin API commands and pass a JSON payload either inline or by file path.
+
+```sh
+dw command PageCopy --json '{ "model": { "SourcePageId": 1189, "DestinationParentPageId": 1129 } }'
+dw command PageMove --json ./PageMove.json
+dw command PageDelete --json '{ "id": "1383" }' --output json
+```
+
+Example JSON output:
+
+```json
+{
+  "ok": true,
+  "command": "command",
+  "operation": "run",
+  "status": 200,
+  "data": [
+    {
+      "success": true,
+      "message": "Command executed"
+    }
+  ],
+  "errors": [],
+  "meta": {
+    "commandName": "PageDelete"
+  }
+}
+```
+
+`dw command --list` is reserved for command metadata, but it is not fully implemented yet.
+
+### `dw install [filePath]`
+
+Upload and install a `.dll` or `.nupkg` add-in into the current environment.
+
+```sh
+dw install ./bin/Release/net10.0/CustomProject.dll
+dw install ./bin/Release/net10.0/CustomProject.dll --queue --output json
+```
+
+Example JSON output:
+
+```json
+{
+  "ok": true,
+  "command": "install",
+  "operation": "queue",
+  "status": 200,
+  "data": [
+    {
+      "type": "upload",
+      "destinationPath": "System/AddIns/Local",
+      "files": [
+        "/workspace/bin/Release/net10.0/CustomProject.dll"
+      ],
+      "response": {
+        "message": "Upload completed"
+      }
+    },
+    {
+      "type": "install",
+      "filePath": "/workspace/bin/Release/net10.0/CustomProject.dll",
+      "filename": "CustomProject.dll",
+      "queued": true,
+      "response": {
+        "success": true,
+        "message": "Addin installed"
+      }
+    }
+  ],
+  "errors": [],
+  "meta": {
+    "filePath": "./bin/Release/net10.0/CustomProject.dll",
+    "filesProcessed": 1,
+    "chunks": 1
+  }
+}
+```
+
+### `dw config`
+
+Write values directly into `~/.dwc` when you want to script config updates.
+
+```sh
+dw config --env.dev.host localhost:6001
+```
+
+### `dw database [path] --export`
+
+Export the current environment database to a `.bacpac` file.
+
+```sh
+dw database ./backups --export
+```
+
+### `dw swift [outPath]`
+
+Download the latest Swift release, a specific tag, or the nightly build.
+
+```sh
+dw swift -l
+dw swift . --tag v2.3.0 --force
+dw swift . --nightly --force
+```
+
+## CI/CD
+
+For CI/CD, prefer OAuth client credentials and JSON output.
+
+- Store `DW_CLIENT_ID` and `DW_CLIENT_SECRET` in your pipeline secret store.
+- Use `--host` together with `--auth oauth` for ephemeral runners.
+- Add `--output json` when you want reliable parsing in scripts.
+
+Example:
+
+```sh
+dw query HealthCheck \
+  --host your-solution.example.com \
+  --auth oauth \
+  --clientIdEnv DW_CLIENT_ID \
+  --clientSecretEnv DW_CLIENT_SECRET \
+  --output json
+```
+
+For longer-lived runners, you can configure a saved environment once with `dw login --oauth`. Full CI/CD guidance will be expanded in the documentation.
+
+## QA Smoke Testing
+
+This repository now includes a reusable QA harness in [qa/README.md](qa/README.md). It runs the CLI against a real DynamicWeb solution using OAuth client credentials, keeps its own isolated `HOME`, and can exercise both:
+
+- saved-environment developer flow
+- ephemeral CI/CD-style flow with `--host --auth oauth`
+
+The harness currently excludes `database` and `swift`.
 
 ## Using Git Bash
-If you're using Git Bash, you may encounter issues with path conversion that can interfere with relative paths used in commands.
 
-### Path Conversion Issues
-Git Bash automatically converts relative paths to absolute paths, which can cause problems. 
-You'll see a warning message if the conversion setting is not disabled:
+Git Bash can rewrite relative paths in a way that interferes with CLI file operations. If you see the path-conversion warning, disable it for the session before running file commands:
 
-"You appear to have path conversion turned on in your shell. 
-If you are using relative paths, this may interfere. 
-Please see https://doc.dynamicweb.dev/documentation/fundamentals/code/CLI.html for more information."
+```sh
+export MSYS_NO_PATHCONV=1
+dw files -iro ./ ./TestFolder --host <host> --apiKey <apiKey>
+```
 
-### Solution
-To resolve this issue, disable path conversion by setting the `MSYS_NO_PATHCONV` environment variable (current session only):
-
-> $ export MSYS_NO_PATHCONV=1
-
-#### Examples
-
-> $ export MSYS_NO_PATHCONV=1
-> $ dw files -iro ./ /TestFolder --host \<host\> --apiKey \<apiKey\>
-
-### Alternative Solutions
-If you prefer not to disable path conversion globally, you can:
-
-1. Prefix relative paths with `./` instead of just `/` to prevent conversion for specific commands.
-2. Use PowerShell or CMD instead of Git Bash.
-
-#### Examples
-
-> $ dw files -iro ./ ./TestFolder --host \<host\> --apiKey \<apiKey\>
+If you do not want to change that setting, prefer `./`-prefixed paths or use PowerShell or CMD instead.
