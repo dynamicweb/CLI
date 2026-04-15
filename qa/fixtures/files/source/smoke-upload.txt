@@ -1,0 +1,1 @@
+DynamicWeb CLI QA smoke file.

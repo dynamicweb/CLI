@@ -465,6 +465,15 @@ dw query HealthCheck \
 
 For longer-lived runners, you can configure a saved environment once with `dw login --oauth`. Full CI/CD guidance will be expanded in the documentation.
 
+## QA Smoke Testing
+
+This repository now includes a reusable QA harness in [qa/README.md](qa/README.md). It runs the CLI against a real DynamicWeb solution using OAuth client credentials, keeps its own isolated `HOME`, and can exercise both:
+
+- saved-environment developer flow
+- ephemeral CI/CD-style flow with `--host --auth oauth`
+
+The harness currently excludes `database` and `swift`.
+
 ## Using Git Bash
 
 Git Bash can rewrite relative paths in a way that interferes with CLI file operations. If you see the path-conversion warning, disable it for the session before running file commands:

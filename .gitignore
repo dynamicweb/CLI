@@ -105,3 +105,7 @@ dist
 
 # Visual Studio
 /.vs
+
+# QA harness
+/qa/artifacts/
+/qa/profile.json

@@ -342,7 +342,7 @@ async function download(env, user, dirPath, outPath, recursive, outname, raw, da
     await extractArchive(filename, filePath, outPath, raw, output);
 }
 
-function prepareDownloadCommandData(directoryPath, excludeDirectories, fileNames, recursive, singleFileMode) {
+export function prepareDownloadCommandData(directoryPath, excludeDirectories, fileNames, recursive, singleFileMode) {
     const data = {
         'DirectoryPath': directoryPath ?? '/',
         'ExcludeDirectories': [excludeDirectories],
@@ -612,14 +612,14 @@ export function resolveFilePath(filePath) {
 }
 
 
-function isFilePath(argv, dirPath) {
+export function isFilePath(argv, dirPath) {
     if (argv.asFile || argv.asDirectory) {
-        return argv.asFile;
+        return Boolean(argv.asFile);
     }
     return path.extname(dirPath) !== '';
 }
 
-function wildcardToRegExp(wildcard) {
+export function wildcardToRegExp(wildcard) {
     const escaped = wildcard.replace(/[.+?^${}()|[\]\\]/g, '\\$&');
     return new RegExp('^' + escaped.replace(/\*/g, '.*') + '$');
 }
@@ -678,7 +678,7 @@ function createFilesOutput(argv) {
     };
 }
 
-function getFilesOperation(argv) {
+export function getFilesOperation(argv) {
     if (argv.list) {
         return 'list';
     }

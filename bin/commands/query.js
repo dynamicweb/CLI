@@ -74,28 +74,52 @@ async function getProperties(env, user, query) {
         if (body?.model?.properties?.groups === undefined) {
             throw createCommandError('Unable to fetch query parameters.', res.status, body);
         }
-        return body.model.properties.groups.filter(g => g.name === 'Properties')[0].fields.map(field => `${field.name} (${field.typeName})`)
+        return extractQueryPropertyPrompts(body);
     }
 
     throw createCommandError('Unable to fetch query parameters.', res.status, await parseJsonSafe(res));
 }
 
-async function getQueryParams(env, user, argv, output) {
+export async function getQueryParams(env, user, argv, output, deps = {}) {
     let params = {}
+    const getPropertiesFn = deps.getPropertiesFn || getProperties;
+    const promptFn = deps.promptFn || input;
     if (argv.interactive) {
-        let properties = await getProperties(env, user, argv.query);
+        let properties = await getPropertiesFn(env, user, argv.query);
         output.log('The following properties will be requested:')
         output.log(properties)
-        for (const p of properties) {
-            const value = await input({ message: p });
-            if (value) {
-                const fieldName = p.split(' (')[0];
-                params[fieldName] = value;
-            }
-        }
+        params = await buildInteractiveQueryParams(properties, promptFn);
     } else {
-        Object.keys(argv).filter(k => !exclude.includes(k)).forEach(k => params[k] = argv[k])
+        params = buildQueryParamsFromArgv(argv);
     }
+    return params
+}
+
+export function extractQueryPropertyPrompts(body) {
+    const fields = body?.model?.properties?.groups?.find(g => g.name === 'Properties')?.fields || [];
+    return fields.map(field => `${field.name} (${field.typeName})`);
+}
+
+export function getFieldNameFromPropertyPrompt(prompt) {
+    return prompt.replace(/\s+\([^)]+\)$/, '');
+}
+
+export async function buildInteractiveQueryParams(properties, promptFn = input) {
+    const params = {};
+
+    for (const propertyPrompt of properties) {
+        const value = await promptFn({ message: propertyPrompt });
+        if (value) {
+            params[getFieldNameFromPropertyPrompt(propertyPrompt)] = value;
+        }
+    }
+
+    return params;
+}
+
+export function buildQueryParamsFromArgv(argv) {
+    let params = {}
+    Object.keys(argv).filter(k => !exclude.includes(k)).forEach(k => params[k] = argv[k])
     return params
 }
 
