@@ -598,6 +598,45 @@ async function uploadChunk(env, user, filePathsChunk, destinationPath, createEmp
     }
 }
 
+export function resolveUploadOutput(output) {
+    const response = output?.response ?? {};
+    response.meta = response.meta ?? {};
+
+    return {
+        structured: Boolean(output),
+        response,
+        log: typeof output?.log === 'function'
+            ? output.log.bind(output)
+            : (...args) => console.log(...args),
+        addData: typeof output?.addData === 'function'
+            ? output.addData.bind(output)
+            : () => { },
+        mergeMeta: typeof output?.mergeMeta === 'function'
+            ? output.mergeMeta.bind(output)
+            : (meta) => {
+                response.meta = {
+                    ...response.meta,
+                    ...meta
+                };
+            }
+    };
+}
+
+function createUploadError(message, status, details = null) {
+    const error = new Error(message);
+    error.status = status;
+    error.details = details;
+    return error;
+}
+
+async function parseJsonSafe(res) {
+    try {
+        return await res.json();
+    } catch {
+        return null;
+    }
+}
+
 export function resolveFilePath(filePath) {
     let p = path.parse(path.resolve(filePath))
     let regex = wildcardToRegExp(p.base);
