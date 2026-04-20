@@ -1,6 +1,11 @@
 # DynamicWeb CLI
 
-DynamicWeb CLI is the command-line interface for working with DynamicWeb 10 solutions. It helps you manage environments, authenticate against the admin API, run queries and commands, move files in and out of a solution, install add-ins, export databases, and pull Swift solutions.
+A CLI for managing DynamicWeb 10 solutions — environments, authentication, queries, commands, files, add-ins, databases, and Swift releases.
+
+| Tool | Best for |
+|------|----------|
+| **DW CLI** (this repo) | Automation, CI/CD pipelines, scripting, headless environments |
+| **[DW Desktop](https://github.com/dynamicweb/dw-desktop)** | Day-to-day developer workflows with a GUI |
 
 This branch now targets `2.0.0-beta.0`.
 
