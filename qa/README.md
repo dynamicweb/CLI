@@ -31,10 +31,18 @@ The harness currently excludes `database` and `swift`.
 
 Set the required credentials:
 
+**bash / WSL:**
 ```sh
 export DW_BASE_URL=https://your-solution.example.com
 export DW_CLIENT_ID=your-client-id
 export DW_CLIENT_SECRET=your-client-secret
+```
+
+**PowerShell:**
+```powershell
+$env:DW_BASE_URL = "https://your-solution.example.com"
+$env:DW_CLIENT_ID = "your-client-id"
+$env:DW_CLIENT_SECRET = "your-client-secret"
 ```
 
 Run with defaults:

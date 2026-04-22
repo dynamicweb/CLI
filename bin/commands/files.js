@@ -741,12 +741,3 @@ export function getFilesOperation(argv) {
 
     return 'unknown';
 }
-
-
-async function parseJsonSafe(res) {
-    try {
-        return await res.json();
-    } catch {
-        return null;
-    }
-}
