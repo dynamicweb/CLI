@@ -355,9 +355,14 @@ async function interactiveOAuthLogin(argv, output) {
 async function nonInteractiveOAuthLogin(argv) {
     verboseLog(argv, 'Configuring OAuth client credentials authentication (non-interactive)');
 
-    const environment = getConfig()?.current?.env;
+    let environment = getConfig()?.current?.env;
+
+    if (!environment && argv.host) {
+        environment = new URL(`https://${argv.host.replace(/^https?:\/\//, '')}`).hostname.split('.')[0] || 'default';
+    }
+
     if (!environment) {
-        throw createCommandError('No environment set. Configure one with "dw env" first.');
+        throw createCommandError('No environment set. Configure one with "dw env" first, or pass --host.');
     }
 
     if (argv.host) {
@@ -373,7 +378,10 @@ async function nonInteractiveOAuthLogin(argv) {
 }
 
 async function finalizeOAuthLogin(environment, clientIdEnv, clientSecretEnv, argv) {
-    const env = getConfig().env[environment];
+    const env = getConfig().env?.[environment];
+    if (!env) {
+        throw createCommandError(`Environment "${environment}" is not configured. Run "dw env" first or pass --host.`);
+    }
     const oauthConfig = resolveOAuthConfig({
         ...argv,
         clientIdEnv,
