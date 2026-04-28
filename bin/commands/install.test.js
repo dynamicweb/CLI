@@ -33,7 +33,7 @@ test('createInstallOutput suppresses regular logs in json mode and emits the fin
             ok: true,
             command: 'install',
             operation: 'install',
-            status: 200,
+            status: 0,
             data: [{ type: 'install', filename: 'addon.nupkg' }],
             errors: [],
             meta: {

@@ -172,7 +172,7 @@ Commands that talk to the Management API -- `env`, `login`, `files`, `query`, `c
   "ok": true,
   "command": "query",
   "operation": "run",
-  "status": 200,
+  "status": 0,
   "data": [
     {
       "name": "DefaultMail.html",
@@ -191,7 +191,7 @@ Commands that talk to the Management API -- `env`, `login`, `files`, `query`, `c
 | `ok` | `boolean` | `true` if the operation succeeded |
 | `command` | `string` | Which CLI command ran |
 | `operation` | `string` | The specific operation within that command |
-| `status` | `number` | HTTP-style status code |
+| `status` | `number` | `0` on success, `1` on failure |
 | `data` | `array` | The result payload |
 | `errors` | `array` | Error objects with `message` and `details` if the operation failed |
 | `meta` | `object` | Command-specific metadata (query name, file counts, etc.) |
@@ -222,7 +222,7 @@ When a command fails, `ok` is `false` and the `errors` array contains structured
   "ok": false,
   "command": "query",
   "operation": "run",
-  "status": 404,
+  "status": 1,
   "data": [],
   "errors": [
     {
@@ -351,7 +351,7 @@ dw env --list --output json
   "ok": true,
   "command": "env",
   "operation": "list",
-  "status": 200,
+  "status": 0,
   "data": [
     {
       "environments": ["dev", "staging", "production"]
@@ -385,7 +385,7 @@ dw login --oauth --output json
   "ok": true,
   "command": "login",
   "operation": "oauth-login",
-  "status": 200,
+  "status": 0,
   "data": [
     {
       "environment": "dev",
@@ -542,7 +542,7 @@ dw files ./Files templates -i -r --output json
   "ok": true,
   "command": "files",
   "operation": "import",
-  "status": 200,
+  "status": 0,
   "data": [
     {
       "type": "upload",
@@ -572,7 +572,7 @@ dw files /Templates/Designs/OldDesign --delete --output json
   "ok": true,
   "command": "files",
   "operation": "delete",
-  "status": 200,
+  "status": 0,
   "data": [
     {
       "type": "delete",
@@ -594,7 +594,7 @@ dw files /Templates/Designs/MyDesign --copy /Templates/Designs/MyDesign-backup -
   "ok": true,
   "command": "files",
   "operation": "copy",
-  "status": 200,
+  "status": 0,
   "data": [
     {
       "type": "copy",
@@ -616,7 +616,7 @@ dw files /Templates/config.json --move /Templates/Backups --output json
   "ok": true,
   "command": "files",
   "operation": "move",
-  "status": 200,
+  "status": 0,
   "data": [
     {
       "type": "move",
@@ -670,7 +670,7 @@ dw query FileByName --name DefaultMail.html --output json
   "ok": true,
   "command": "query",
   "operation": "run",
-  "status": 200,
+  "status": 0,
   "data": [
     {
       "name": "DefaultMail.html",
@@ -718,7 +718,7 @@ dw command PageDelete --json '{ "id": "1383" }' --output json
   "ok": true,
   "command": "command",
   "operation": "run",
-  "status": 200,
+  "status": 0,
   "data": [
     {
       "success": true,

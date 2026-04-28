@@ -284,7 +284,7 @@ function createEnvOutput(argv) {
         ok: true,
         command: 'env',
         operation: argv.users ? 'users' : argv.list ? 'list' : argv.env ? 'select' : 'setup',
-        status: 200,
+        status: 0,
         data: [],
         errors: [],
         meta: {}

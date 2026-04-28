@@ -100,7 +100,7 @@ function createCommandOutput(argv) {
         ok: true,
         command: 'command',
         operation: argv.list ? 'list' : 'run',
-        status: 200,
+        status: 0,
         data: [],
         errors: [],
         meta: {

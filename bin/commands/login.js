@@ -540,7 +540,7 @@ function createLoginOutput(argv) {
         ok: true,
         command: 'login',
         operation: shouldUseOAuth(argv, getCurrentEnv(argv)) ? 'oauth-login' : argv.user ? 'select-user' : 'login',
-        status: 200,
+        status: 0,
         data: [],
         errors: [],
         meta: {}

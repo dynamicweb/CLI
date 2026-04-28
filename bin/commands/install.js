@@ -102,7 +102,7 @@ function createInstallOutput(argv) {
         ok: true,
         command: 'install',
         operation: argv.queue ? 'queue' : 'install',
-        status: 200,
+        status: 0,
         data: [],
         errors: [],
         meta: {
