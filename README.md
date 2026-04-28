@@ -40,7 +40,7 @@ npm install -g .
 
 The `2.0` preview is a substantial overhaul focused on automation and modern authentication.
 
-- Automation-first command output: `env`, `login`, `files`, `query`, `command`, and `install` now support `--output json` so scripts and pipelines can consume structured results instead of plain console logs.
+- Automation-first command output: `env`, `login`, `files`, `folders`, `query`, `command`, and `install` now support `--output json` so scripts and pipelines can consume structured results instead of plain console logs.
 - OAuth client credentials support: the CLI can now authenticate with OAuth 2.0 `client_credentials`, which makes headless and CI/CD usage much easier.
 - Better environment handling: protocol, host, and auth details are stored more cleanly in `~/.dwc`, while one-off runs can still override host and credentials directly.
 - Improved file workflows: file import, export, recursive sync, raw archive export, progress reporting, and source-type override flags make file operations more predictable.
@@ -265,7 +265,7 @@ Example JSON output:
 
 ### `dw files [dirPath] [outPath]`
 
-List, export, and import files from the DynamicWeb file archive.
+List, export, import, delete, copy, and move files and directories in the DynamicWeb file archive.
 
 Useful flags:
 
@@ -273,6 +273,10 @@ Useful flags:
 - `-f`, `--includeFiles`: include files in listings
 - `-e`, `--export`: export from the environment to disk
 - `-i`, `--import`: import from disk to the environment
+- `-d`, `--delete`: delete a file or directory
+- `--empty`: used with `--delete`, empties a directory instead of removing it
+- `--copy <dest>`: copy a file or directory to a destination path
+- `--move <dest>`: move a file or directory to a destination path
 - `-r`, `--recursive`: recurse through subdirectories
 - `--raw`: keep downloaded archives zipped
 - `--dangerouslyIncludeLogsAndCache`: include log and cache folders during export, which is risky and usually not recommended
@@ -287,6 +291,37 @@ dw files system -lr
 dw files templates/Translations.xml ./templates -e
 dw files templates/templates.v1 ./templates -e -ad
 dw files ./Files templates -i -r --output json
+dw files /Templates/OldDesign --delete
+dw files /Templates/MyDesign --copy /Templates/MyDesign-backup
+dw files /Templates/OldName --move /Templates/Archive
+```
+
+### `dw folders <folderPath>`
+
+Create, rename, move, delete, copy, and export directories. Where `dw files` detects file vs. directory from the path extension, `dw folders` always treats the path as a directory — no ambiguity.
+
+Useful flags:
+
+- `-c`, `--create`: create the directory at `<folderPath>`
+- `--rename <newName>`: rename the directory to a new name (keeps it in the same parent)
+- `-m`, `--move <dest>`: move the directory to the given destination path
+- `-d`, `--delete`: delete the directory
+- `--empty`: used with `--delete`, empties the directory instead of removing it
+- `--copy <dest>`: copy the directory to the given destination path
+- `-e`, `--export`: export the directory to disk
+- `-o`, `--outPath`: local destination for `--export` (defaults to `.`)
+- `--raw`: keep exported archives zipped instead of extracting
+
+Examples:
+
+```sh
+dw folders /Files/NewFolder --create
+dw folders /Files/OldName --rename NewName
+dw folders /Files/MyFolder --move /Files/Archive
+dw folders /Files/MyFolder --delete
+dw folders /Files/MyFolder --delete --empty
+dw folders /Files/MyFolder --copy /Files/MyFolder-backup
+dw folders /Files/MyFolder --export --outPath ./local
 ```
 
 Example JSON output:

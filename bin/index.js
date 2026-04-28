@@ -7,6 +7,7 @@ import { envCommand } from './commands/env.js';
 import { configCommand, setupConfig, getConfig } from './commands/config.js';
 import { installCommand } from './commands/install.js';
 import { filesCommand } from './commands/files.js';
+import { foldersCommand } from './commands/folders.js';
 import { swiftCommand } from './commands/swift.js';
 import { databaseCommand } from './commands/database.js';
 import { queryCommand } from './commands/query.js';
@@ -23,6 +24,7 @@ yargs(hideBin(process.argv))
     .command(installCommand())
     .command(configCommand())
     .command(filesCommand())
+    .command(foldersCommand())
     .command(swiftCommand())
     .command(databaseCommand())
     .command(queryCommand())
