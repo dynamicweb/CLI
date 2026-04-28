@@ -7,7 +7,7 @@ A CLI for managing DynamicWeb 10 solutions — environments, authentication, que
 | **DW CLI** (this repo) | Automation, CI/CD pipelines, scripting, headless environments |
 | **[DW Desktop](https://github.com/dynamicweb/dw-desktop)** | Day-to-day developer workflows with a GUI |
 
-This branch now targets `2.0.0-beta.0`.
+This branch now targets `2.0.0-preview.1`.
 
 ## Requirements
 
@@ -38,7 +38,7 @@ npm install -g .
 
 ## What Changed
 
-The `2.0` beta is a substantial overhaul focused on automation and modern authentication.
+The `2.0` preview is a substantial overhaul focused on automation and modern authentication.
 
 - Automation-first command output: `env`, `login`, `files`, `query`, `command`, and `install` now support `--output json` so scripts and pipelines can consume structured results instead of plain console logs.
 - OAuth client credentials support: the CLI can now authenticate with OAuth 2.0 `client_credentials`, which makes headless and CI/CD usage much easier.
