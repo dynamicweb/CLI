@@ -142,7 +142,7 @@ function createQueryOutput(argv) {
         ok: true,
         command: 'query',
         operation: argv.list ? 'list' : 'run',
-        status: 200,
+        status: 0,
         data: [],
         errors: [],
         meta: {

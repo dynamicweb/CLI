@@ -665,7 +665,7 @@ function createFilesOutput(argv) {
         ok: true,
         command: 'files',
         operation: getFilesOperation(argv),
-        status: 200,
+        status: 0,
         data: [],
         errors: [],
         meta: {}
