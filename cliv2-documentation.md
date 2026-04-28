@@ -17,8 +17,9 @@ If you need to do something once, interactively, the DynamicWeb backend UI is us
 Version 2 is an automation-first overhaul. The headline changes:
 
 - **OAuth client credentials** -- the CLI can now authenticate with an OAuth 2.0 client ID and secret, removing the need for an interactive login in CI/CD pipelines and service-account scenarios. See [Authentication](#authentication) for setup details.
-- **Structured JSON output** -- every API-driven command (`env`, `login`, `files`, `query`, `command`, `install`) supports `--output json`, returning a consistent envelope with `ok`, `status`, `data`, `errors`, and `meta` fields. Interactive prompts are suppressed in JSON mode so output is safe to pipe. See [Automation and JSON output](#automation-and-json-output).
+- **Structured JSON output** -- every API-driven command (`env`, `login`, `files`, `folders`, `query`, `command`, `install`) supports `--output json`, returning a consistent envelope with `ok`, `status`, `data`, `errors`, and `meta` fields. Interactive prompts are suppressed in JSON mode so output is safe to pipe. See [Automation and JSON output](#automation-and-json-output).
 - **File delete, copy, and move** -- the `files` command can now delete, copy, and move files and directories on the environment in addition to listing, exporting, and importing. See the [files command reference](#files).
+- **Folder management** -- the new `folders` command creates, renames, moves, deletes, copies, and exports directories. It always treats the path as a directory, removing the file-extension ambiguity that `dw files` has. See the [folders command reference](#folders).
 - **Consistent error model** -- commands that previously printed a message and exited silently now return structured errors (in JSON mode) or throw with a non-zero exit code. Scripts can rely on exit code `1` and the `errors` array for programmatic error handling.
 
 ### Migrating from v1
@@ -165,7 +166,7 @@ Use `--auth user` to force user authentication even when an environment is confi
 
 ## Automation and JSON output
 
-Commands that talk to the Management API -- `env`, `login`, `files`, `query`, `command`, and `install` -- support `--output json`. The `database`, `swift`, and `config` commands do not support `--output json`. This returns a structured envelope instead of human-readable console output:
+Commands that talk to the Management API -- `env`, `login`, `files`, `folders`, `query`, `command`, and `install` -- support `--output json`. The `database`, `swift`, and `config` commands do not support `--output json`. This returns a structured envelope instead of human-readable console output:
 
 ```json
 {
@@ -623,6 +624,124 @@ dw files /Templates/config.json --move /Templates/Backups --output json
       "sourcePath": "/Templates/config.json",
       "destination": "/Templates/Backups",
       "overwrite": false
+    }
+  ],
+  "errors": [],
+  "meta": {}
+}
+```
+
+### folders
+
+Create, rename, move, delete, copy, and export directories in the DynamicWeb file archive.
+
+```sh
+dw folders <folderPath> [options]
+```
+
+Unlike `dw files`, which infers whether a path refers to a file or a directory based on whether it has a file extension, `dw folders` always treats the path as a directory. This avoids ambiguity for paths like `templates.v1` or `my.theme`.
+
+**Key options:**
+
+| Option | Description |
+|--------|-------------|
+| `-c`, `--create` | Create the directory at `<folderPath>` |
+| `--rename <newName>` | Rename the directory to a new name, keeping it in the same parent |
+| `-m`, `--move <dest>` | Move the directory to the given destination path |
+| `-d`, `--delete` | Delete the directory |
+| `--empty` | Used with `--delete`, empties the directory instead of removing it |
+| `--copy <dest>` | Copy the directory to the given destination path |
+| `-e`, `--export` | Export the directory to disk |
+| `-o`, `--outPath` | Local destination for `--export` (defaults to `.`) |
+| `--raw` | Keep exported archives zipped instead of extracting |
+
+**Examples:**
+
+```sh
+# Create a new directory
+dw folders /Files/NewFolder --create
+
+# Rename a directory
+dw folders /Files/OldName --rename NewName
+
+# Move a directory into another location
+dw folders /Files/MyFolder --move /Files/Archive
+
+# Delete a directory
+dw folders /Files/MyFolder --delete
+
+# Empty a directory (remove contents, keep the directory)
+dw folders /Files/MyFolder --delete --empty
+
+# Copy a directory
+dw folders /Files/MyFolder --copy /Files/MyFolder-backup
+
+# Export a directory to disk
+dw folders /Files/MyFolder --export --outPath ./local
+```
+
+**Relationship to `dw files`:** `--delete`, `--copy`, and `--export` are routed through the same implementation as `dw files` and produce identical JSON output shapes. `--create`, `--rename`, and `--move` are directory-only operations with no `dw files` equivalent.
+
+**JSON output:**
+
+```sh
+dw folders /Files/NewFolder --create --output json
+```
+
+```json
+{
+  "ok": true,
+  "command": "folders",
+  "operation": "create",
+  "status": 0,
+  "data": [
+    {
+      "type": "create",
+      "path": "/Files/NewFolder"
+    }
+  ],
+  "errors": [],
+  "meta": {}
+}
+```
+
+```sh
+dw folders /Files/OldName --rename NewName --output json
+```
+
+```json
+{
+  "ok": true,
+  "command": "folders",
+  "operation": "rename",
+  "status": 0,
+  "data": [
+    {
+      "type": "rename",
+      "path": "/Files/OldName",
+      "newName": "NewName"
+    }
+  ],
+  "errors": [],
+  "meta": {}
+}
+```
+
+```sh
+dw folders /Files/MyFolder --move /Files/Archive --output json
+```
+
+```json
+{
+  "ok": true,
+  "command": "folders",
+  "operation": "move",
+  "status": 0,
+  "data": [
+    {
+      "type": "move",
+      "sourcePath": "/Files/MyFolder",
+      "destinationPath": "/Files/Archive"
     }
   ],
   "errors": [],

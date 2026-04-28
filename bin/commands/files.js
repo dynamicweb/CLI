@@ -130,7 +130,7 @@ export function filesCommand() {
     }
 }
 
-async function handleFiles(argv, output) {
+export async function handleFiles(argv, output) {
     let env = await setupEnv(argv, output);
     let user = await setupUser(argv, env);
 

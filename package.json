@@ -2,7 +2,7 @@
   "name": "@dynamicweb/cli",
   "type": "module",
   "description": "CLI for interacting with Dynamicweb 10 solutions from the command line.",
-  "version": "2.0.0-preview.1",
+  "version": "2.0.0-preview.2",
   "main": "bin/index.js",
   "files": [
     "bin/**"
