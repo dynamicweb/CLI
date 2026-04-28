@@ -15,6 +15,13 @@ This branch now targets `2.0.0-beta.0`.
 
 ## Install
 
+Install the preview from npm:
+
+```sh
+npm install -g @dynamicweb/cli@preview
+dw --help
+```
+
 Install from npm:
 
 ```sh
@@ -180,7 +187,7 @@ Representative output:
   "ok": true,
   "command": "env",
   "operation": "list",
-  "status": 200,
+  "status": 0,
   "data": [
     {
       "environments": ["dev", "staging"]
@@ -211,7 +218,7 @@ Example JSON output:
   "ok": true,
   "command": "env",
   "operation": "select",
-  "status": 200,
+  "status": 0,
   "data": [
     {
       "environment": "dev",
@@ -241,7 +248,7 @@ Example JSON output:
   "ok": true,
   "command": "login",
   "operation": "oauth-login",
-  "status": 200,
+  "status": 0,
   "data": [
     {
       "environment": "dev",
@@ -289,7 +296,7 @@ Example JSON output:
   "ok": true,
   "command": "files",
   "operation": "import",
-  "status": 200,
+  "status": 0,
   "data": [
     {
       "type": "upload",
@@ -328,7 +335,7 @@ Example JSON output:
   "ok": true,
   "command": "query",
   "operation": "run",
-  "status": 200,
+  "status": 0,
   "data": [
     {
       "name": "DefaultMail.html",
@@ -359,7 +366,7 @@ Example JSON output:
   "ok": true,
   "command": "command",
   "operation": "run",
-  "status": 200,
+  "status": 0,
   "data": [
     {
       "success": true,
@@ -391,7 +398,7 @@ Example JSON output:
   "ok": true,
   "command": "install",
   "operation": "queue",
-  "status": 200,
+  "status": 0,
   "data": [
     {
       "type": "upload",
