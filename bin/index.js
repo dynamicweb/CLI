@@ -43,6 +43,10 @@ yargs(hideBin(process.argv))
     .option('apiKey', {
         description: 'Allows setting the apiKey for an environmentless execution of the CLI command'
     })
+    .option('oauth', {
+        type: 'boolean',
+        description: 'Use OAuth client credentials authentication (shorthand for --auth oauth)'
+    })
     .option('auth', {
         choices: ['user', 'oauth'],
         description: 'Overrides the authentication mode for the command'

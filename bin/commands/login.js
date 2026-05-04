@@ -73,17 +73,18 @@ export async function setupUser(argv, env) {
                 default: getConfig()?.current?.env,
                 prompt: 'never'
               },
-              username: { 
+              username: {
                 type: 'input'
               },
-              password: { 
+              password: {
                 type: 'password'
               },
               interactive: {
                   default: true
               }
         })
-        user = env.users[env.current.user];
+        const currentEnv = getConfig()?.current?.env;
+        user = getConfig()?.env?.[currentEnv]?.users?.[getConfig()?.env?.[currentEnv]?.current?.user];
     }
 
     return user;
