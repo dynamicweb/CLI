@@ -162,6 +162,7 @@ Most API-driven commands support these global options:
 - `--host`: use a host directly instead of the saved environment
 - `--protocol`: set the protocol used with `--host` and default to `https`
 - `--apiKey`: use an API key for environmentless execution
+- `--oauth`: use OAuth client credentials authentication (shorthand for `--auth oauth`)
 - `--auth`: override authentication mode with `user` or `oauth`
 - `--clientId`: pass an OAuth client ID directly
 - `--clientSecret`: pass an OAuth client secret directly
