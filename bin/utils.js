@@ -3,6 +3,62 @@ import logUpdate from 'log-update';
 
 const WRITE_THROTTLE_MS = 500;
 
+// Query-string keys whose values must never be printed. Matched on the
+// normalised name, so apiKey, api-key and API_KEY are all covered.
+const SENSITIVE_PARAMS = ['apikey', 'key', 'token', 'accesstoken', 'password', 'secret', 'signature', 'sig'];
+
+/**
+ * Normalises an option name for comparison: lowercased, with separators removed.
+ *
+ * yargs puts every spelling of a camelCase option into argv -- `apiKey` and the
+ * generated `api-key` alias both appear -- so comparing literal names lets one
+ * spelling through. Normalising catches all of them, including aliases added
+ * later.
+ *
+ * @param {string} name - The option name as it appears in argv.
+ * @returns {string} The normalised name.
+ */
+export function normalizeOptionName(name) {
+    return String(name).toLowerCase().replace(/[^a-z0-9]/g, '');
+}
+
+/**
+ * Builds a predicate that tells parameters destined for the remote endpoint apart
+ * from the CLI's own switches.
+ *
+ * @param {string[]} reserved - The CLI's own option names, in any spelling.
+ * @returns {(name: string) => boolean} True when the name is a remote parameter.
+ */
+export function isRemoteParam(reserved) {
+    const names = new Set(reserved.map(normalizeOptionName));
+    return (name) => !names.has(normalizeOptionName(name));
+}
+
+/**
+ * Replaces the values of credential-bearing query parameters with `***`, so a URL
+ * can be shown in an error message without putting a secret in the terminal, in CI
+ * logs or in a saved transcript.
+ *
+ * @param {string} url - The URL to redact.
+ * @returns {string} The URL with sensitive parameter values masked.
+ */
+export function redactUrl(url) {
+    if (!url) return url;
+    try {
+        const parsed = new URL(url);
+        for (const name of [...parsed.searchParams.keys()]) {
+            if (SENSITIVE_PARAMS.includes(normalizeOptionName(name))) {
+                parsed.searchParams.set(name, '***');
+            }
+        }
+        return parsed.toString();
+    } catch {
+        // Not a parsable URL; fall back to masking anything that reads like a secret
+        // rather than returning the input unchanged.
+        return String(url).replace(/([?&][^=&]*(?:key|token|secret|password|sig)[^=&]*=)[^&]*/gi, '$1***');
+    }
+}
+
 export async function interactiveConfirm(question, func) {
     const result = await confirm({ message: question, default: true });
     if (!result) return;
