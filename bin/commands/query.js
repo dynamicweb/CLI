@@ -2,8 +2,10 @@ import fetch from 'node-fetch';
 import { setupEnv, getAgent } from './env.js';
 import { setupUser } from './login.js';
 import { input } from '@inquirer/prompts';
+import { isRemoteParam, redactUrl } from '../utils.js';
 
 const exclude = ['_', '$0', 'query', 'list', 'i', 'l', 'interactive', 'verbose', 'v', 'host', 'protocol', 'apiKey', 'env']
+const isQueryParam = isRemoteParam(exclude)
 
 export function queryCommand() {
     return {
@@ -79,7 +81,7 @@ async function getQueryParams(argv) {
             }
         }
     } else {
-        Object.keys(argv).filter(k => !exclude.includes(k)).forEach(k => params[k] = argv[k])
+        Object.keys(argv).filter(isQueryParam).forEach(k => params[k] = argv[k])
     }
     return params
 }
@@ -93,7 +95,7 @@ async function runQuery(env, user, query, params) {
         agent: getAgent(env.protocol)
     })
     if (!res.ok) {
-        console.log(`Error when doing request ${res.url}`)
+        console.log(`Error when doing request ${redactUrl(res.url)}`)
         process.exit(1);
     }
     return await res.json()

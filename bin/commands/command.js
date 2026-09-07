@@ -3,8 +3,10 @@ import path from 'path';
 import fs from 'fs';
 import { setupEnv, getAgent } from './env.js';
 import { setupUser } from './login.js';
+import { isRemoteParam, redactUrl } from '../utils.js';
 
 const exclude = ['_', '$0', 'command', 'list', 'json', 'verbose', 'v', 'host', 'protocol', 'apiKey', 'env']
+const isCommandParam = isRemoteParam(exclude)
 
 export function commandCommand() {
     return {
@@ -58,7 +60,7 @@ async function getProperties(env, user, command) {
 
 function getQueryParams(argv) {
     let params = {}
-    Object.keys(argv).filter(k => !exclude.includes(k)).forEach(k => params['Command.' + k] = argv[k])
+    Object.keys(argv).filter(isCommandParam).forEach(k => params['Command.' + k] = argv[k])
     return params
 }
 
@@ -82,7 +84,7 @@ async function runCommand(env, user, command, queryParams, data) {
         agent: getAgent(env.protocol)
     })
     if (!res.ok) {
-        console.log(`Error when doing request ${res.url}`)
+        console.log(`Error when doing request ${redactUrl(res.url)}`)
         process.exit(1);
     }
     return await res.json()
