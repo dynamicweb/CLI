@@ -22,6 +22,30 @@ export function getAgent(protocol) {
     return protocol === 'http' ? httpAgent : httpsAgent;
 }
 
+export function parseHostInput(hostValue) {
+    if (!hostValue || typeof hostValue !== 'string' || !hostValue.trim()) {
+        throw createCommandError(`Invalid host value: ${hostValue}`);
+    }
+    hostValue = hostValue.trim();
+    const hostSplit = hostValue.split('://');
+
+    if (hostSplit.length === 1) {
+        return {
+            protocol: 'https',
+            host: hostSplit[0]
+        };
+    }
+
+    if (hostSplit.length === 2) {
+        return {
+            protocol: hostSplit[0],
+            host: hostSplit[1]
+        };
+    }
+
+    throw createCommandError(`Issues resolving host ${hostValue}`);
+}
+
 export function envCommand() {
     return {
         command: 'env [env]',
@@ -41,12 +65,29 @@ export function envCommand() {
                     type: 'boolean',
                     description: 'List all users in environment, uses positional [env] if used, otherwise current env'
                 })
+                .option('output', {
+                    choices: ['json'],
+                    describe: 'Outputs a single JSON response for automation-friendly parsing'
+                })
         },
-        handler: (argv) => handleEnv(argv)
+        handler: async (argv) => {
+            const output = createEnvOutput(argv);
+
+            try {
+                await handleEnv(argv, output);
+            } catch (err) {
+                output.fail(err);
+                process.exitCode = 1;
+            } finally {
+                output.finish();
+            }
+        }
     }
 }
 
-export async function setupEnv(argv) {
+export async function setupEnv(argv, output = null, deps = {}) {
+    const interactiveEnvFn = deps.interactiveEnvFn || interactiveEnv;
+    const cfg = getConfig();
     let env = {};
     let askEnv = true;
 
@@ -60,36 +101,58 @@ export async function setupEnv(argv) {
         }
     }
 
-    if (askEnv && getConfig().env) {
-        env = getConfig().env[argv.env] || getConfig().env[getConfig()?.current?.env];
-        if (!env.protocol) {
-            console.log('Protocol for environment not set, defaulting to https');
+    if (askEnv && cfg.env) {
+        env = cfg.env[argv.env] || cfg.env[cfg?.current?.env];
+        if (env && !env.protocol) {
+            logMessage(argv, 'Protocol for environment not set, defaulting to https');
             env.protocol = 'https';
         }
     }
     else if (askEnv) {
-        console.log('Current environment not set, please set it')
-        await interactiveEnv(argv, {
+        if (isJsonOutput(argv)) {
+            throw createCommandError('Current environment not set, please set it');
+        }
+
+        logMessage(argv, 'Current environment not set, please set it');
+        await interactiveEnvFn(argv, {
             environment: {
                 type: 'input'
             },
             interactive: {
                 default: true
             }
-        })
-        env = getConfig().env[getConfig()?.current?.env];
+        }, output)
+        const updatedConfig = getConfig();
+        env = updatedConfig.env?.[updatedConfig?.current?.env];
     }
+
+    if (!env || Object.keys(env).length === 0) {
+        throw createCommandError('Unable to resolve the current environment.');
+    }
+
     return env;
 }
 
-async function handleEnv(argv) {
+async function handleEnv(argv, output) {
     if (argv.users) {
-        let env = argv.env || getConfig().current.env;
-        console.log(`Users in environment ${env}: ${Object.keys(getConfig().env[env].users || {})}`);
+        const cfg = getConfig();
+        let env = argv.env || cfg.current?.env;
+        const envConfig = cfg.env?.[env];
+        if (!envConfig) {
+            throw createCommandError(`Environment '${env}' does not exist`, 404);
+        }
+        const users = Object.keys(envConfig.users || {});
+        output.addData({ environment: env, users });
+        output.log(`Users in environment ${env}: ${users}`);
     } else if (argv.env) {
-        changeEnv(argv)
+        const result = await changeEnv(argv, output);
+        if (result !== null) {
+            output.addData(result);
+        }
     } else if (argv.list) {
-        console.log(`Existing environments: ${Object.keys(getConfig().env || {})}`)
+        const environments = Object.keys(getConfig().env || {});
+        output.addData({ environments });
+        output.log(`Existing environments: ${environments}`);
     } else {
         await interactiveEnv(argv, {
             environment: {
@@ -102,12 +165,12 @@ async function handleEnv(argv) {
             interactive: {
                 default: true
             }
-        })
+        }, output)
     }
 }
 
-export async function interactiveEnv(argv, options) {
-    if (argv.verbose) console.info('Setting up new environment')
+export async function interactiveEnv(argv, options, output) {
+    verboseLog(argv, 'Setting up new environment');
     const result = {};
     for (const [key, config] of Object.entries(options)) {
         if (key === 'interactive') continue;
@@ -122,35 +185,46 @@ export async function interactiveEnv(argv, options) {
     }
     getConfig().env = getConfig().env || {};
     if (!result.environment || !result.environment.trim()) {
-        console.log('Environment name cannot be empty');
-        return;
+        throw createCommandError('Environment name cannot be empty');
     }
     getConfig().env[result.environment] = getConfig().env[result.environment] || {};
     if (result.host) {
-        const hostSplit = result.host.split("://");
-        if (hostSplit.length == 1) {
-            getConfig().env[result.environment].protocol = 'https';
-            getConfig().env[result.environment].host = hostSplit[0];
-        } else if (hostSplit.length == 2) {
-            getConfig().env[result.environment].protocol = hostSplit[0];
-            getConfig().env[result.environment].host = hostSplit[1];
-        } else {
-            console.log(`Issues resolving host ${result.host}`);
-            return;
-        }
+        const resolvedHost = parseHostInput(result.host);
+        getConfig().env[result.environment].protocol = resolvedHost.protocol;
+        getConfig().env[result.environment].host = resolvedHost.host;
     }
     if (result.environment) {
         getConfig().current = getConfig().current || {};
         getConfig().current.env = result.environment;
     }
     updateConfig();
-    console.log(`Your current environment is now ${getConfig().current.env}`);
-    console.log(`To change the host of your environment, use the command 'dw env'`)
+    logMessage(argv, `Your current environment is now ${getConfig().current.env}`);
+    logMessage(argv, `To change the host of your environment, use the command 'dw env'`);
+
+    const currentEnv = getConfig().env[result.environment];
+    const data = {
+        environment: result.environment,
+        protocol: currentEnv.protocol || null,
+        host: currentEnv.host || null,
+        current: getConfig().current.env
+    };
+
+    if (output) {
+        output.addData(data);
+    }
+
+    return data;
 }
 
-async function changeEnv(argv) {
-    if (!Object.keys(getConfig().env).includes(argv.env)) {
-        console.log(`The specified environment ${argv.env} doesn't exist, please create it`);
+async function changeEnv(argv, output) {
+    const environments = getConfig().env || {};
+
+    if (!Object.hasOwn(environments, argv.env)) {
+        if (isJsonOutput(argv)) {
+            throw createCommandError(`The specified environment ${argv.env} doesn't exist, please create it`, 404);
+        }
+
+        logMessage(argv, `The specified environment ${argv.env} doesn't exist, please create it`);
         await interactiveEnv(argv, {
             environment: {
                 type: 'input',
@@ -165,10 +239,79 @@ async function changeEnv(argv) {
             interactive: {
                 default: true
             }
-        })
+        }, output)
+        return null;
     } else {
         getConfig().current.env = argv.env;
         updateConfig();
-        console.log(`Your current environment is now ${getConfig().current.env}`);
+        const data = {
+            environment: argv.env,
+            current: getConfig().current.env
+        };
+        logMessage(argv, `Your current environment is now ${getConfig().current.env}`);
+        if (output) {
+            output.addData(data);
+        }
+        return null;
     }
+}
+
+export function isJsonOutput(argv) {
+    return argv?.output === 'json';
+}
+
+export function createCommandError(message, status = 1, details = null) {
+    const error = new Error(message);
+    error.status = status;
+    error.details = details;
+    return error;
+}
+
+function logMessage(argv, ...args) {
+    if (!isJsonOutput(argv)) {
+        console.log(...args);
+    }
+}
+
+function verboseLog(argv, ...args) {
+    if (argv?.verbose && !isJsonOutput(argv)) {
+        console.info(...args);
+    }
+}
+
+function createEnvOutput(argv) {
+    const response = {
+        ok: true,
+        command: 'env',
+        operation: argv.users ? 'users' : argv.list ? 'list' : argv.env ? 'select' : 'setup',
+        status: 0,
+        data: [],
+        errors: [],
+        meta: {}
+    };
+
+    return {
+        json: isJsonOutput(argv),
+        addData(entry) {
+            response.data.push(entry);
+        },
+        log(...args) {
+            if (!this.json) {
+                console.log(...args);
+            }
+        },
+        fail(err) {
+            response.ok = false;
+            response.status = err?.status || 1;
+            response.errors.push({
+                message: err?.message || 'Unknown env command error.',
+                details: err?.details ?? null
+            });
+        },
+        finish() {
+            if (this.json) {
+                console.log(JSON.stringify(response, null, 2));
+            }
+        }
+    };
 }

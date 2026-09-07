@@ -1,0 +1,1 @@
+Nested fixture for the DynamicWeb CLI QA smoke run.
