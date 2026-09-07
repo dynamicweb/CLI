@@ -1,5 +1,6 @@
 #! /usr/bin/env node
 
+import { readFileSync } from 'fs';
 import yargs from 'yargs/yargs';
 import { hideBin } from 'yargs/helpers';
 import { loginCommand } from './commands/login.js';
@@ -12,11 +13,18 @@ import { databaseCommand } from './commands/database.js';
 import { queryCommand } from './commands/query.js';
 import { commandCommand } from './commands/command.js';
 
+// Resolved from import.meta.url, not the working directory. Left to yargs, the
+// version is guessed by walking up from process.cwd() for a package.json, which
+// reports whichever project the user happens to be standing in -- or `unknown`
+// when there is none.
+const { version } = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8'));
+
 setupConfig();
 showGitBashRelativePathWarning();
 
 yargs(hideBin(process.argv))
     .scriptName('dw')
+    .version(version)
     .command(baseCommand())
     .command(loginCommand())
     .command(envCommand())
