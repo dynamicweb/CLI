@@ -32,12 +32,11 @@ test('createInstallOutput suppresses regular logs in json mode and emits the fin
         assert.deepEqual(rendered, {
             ok: true,
             command: 'install',
-            operation: 'install',
+            operation: 'queue',
             status: 0,
             data: [{ type: 'install', filename: 'addon.nupkg' }],
             errors: [],
             meta: {
-                queued: true,
                 resolvedPath: '/tmp/addon.nupkg'
             }
         });

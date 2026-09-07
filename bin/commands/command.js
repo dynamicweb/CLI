@@ -3,8 +3,10 @@ import path from 'path';
 import fs from 'fs';
 import { setupEnv, getAgent, createCommandError } from './env.js';
 import { setupUser } from './login.js';
+import { isRemoteParam, redactUrl } from '../utils.js';
 
 const exclude = ['_', '$0', 'command', 'list', 'json', 'verbose', 'v', 'host', 'protocol', 'apiKey', 'env', 'output', 'auth', 'clientId', 'clientSecret', 'clientIdEnv', 'clientSecretEnv', 'oauth']
+const isCommandParam = isRemoteParam(exclude)
 
 export function commandCommand() {
     return {
@@ -63,7 +65,7 @@ async function getProperties(env, user, command) {
 
 export function getQueryParams(argv) {
     let params = {}
-    Object.keys(argv).filter(k => !exclude.includes(k)).forEach(k => params['Command.' + k] = argv[k])
+    Object.keys(argv).filter(isCommandParam).forEach(k => params['Command.' + k] = argv[k])
     return params
 }
 
@@ -90,7 +92,7 @@ async function runCommand(env, user, command, queryParams, data) {
         agent: getAgent(env.protocol)
     })
     if (!res.ok) {
-        throw createCommandError(`Error when doing request ${res.url}`, res.status, await parseJsonSafe(res));
+        throw createCommandError(`Error when doing request ${redactUrl(res.url)}`, res.status, await parseJsonSafe(res));
     }
     return await res.json()
 }

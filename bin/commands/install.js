@@ -97,7 +97,7 @@ async function installAddin(env, user, resolvedPath, queue, output) {
     }
 }
 
-function createInstallOutput(argv) {
+export function createInstallOutput(argv) {
     const response = {
         ok: true,
         command: 'install',
