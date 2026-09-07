@@ -1,5 +1,6 @@
 import { execFile } from 'child_process';
 import { Agent } from 'https';
+import fs from 'fs';
 import path from 'path';
 import fetch from 'node-fetch';
 
@@ -49,7 +50,8 @@ async function handleSwift(argv) {
         if (argv.force) args.push('--force');
         args.push(path.resolve(argv.outPath));
         if (argv.verbose) console.info(`Executing: npx ${args.join(' ')}`)
-        execFile('npx', args, (error, stdout, stderr) => {
+        const [command, commandArgs, options] = resolveNpx(args);
+        execFile(command, commandArgs, options, (error, stdout, stderr) => {
             if (error) {
                 console.log(`error: ${error.message}`);
                 return;
@@ -61,6 +63,21 @@ async function handleSwift(argv) {
             console.log(stdout);
         });
     }
+}
+
+// On Windows npx exists only as a shell script and as npx.cmd, and neither can be
+// spawned directly any more: Node removed the implicit shell for .cmd files in the
+// CVE-2024-27980 fix (18.20.2 / 20.12.2 / 21.7.3), so execFile('npx') fails with
+// ENOENT and execFile('npx.cmd') with EINVAL. Prefer running npm's npx-cli.js with
+// the node binary already executing this process, which needs no shell at all and
+// so does not expose the arguments to shell parsing. Fall back to a shell only when
+// npm is not installed alongside node, as with some version managers.
+function resolveNpx(args) {
+    const npxCli = path.join(path.dirname(process.execPath), 'node_modules', 'npm', 'bin', 'npx-cli.js');
+    if (fs.existsSync(npxCli)) {
+        return [process.execPath, [npxCli, ...args], {}];
+    }
+    return ['npx', args, { shell: process.platform === 'win32' }];
 }
 
 async function getVersions(latest) {
