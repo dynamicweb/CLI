@@ -51,7 +51,8 @@ are skipped.
 ### Global CLI flags
 
 All commands inherit: `--verbose/-v`, `--host`, `--protocol`, `--apiKey`, `--oauth`,
-`--auth user|oauth`, `--clientId`, `--clientSecret`, `--clientIdEnv`, `--clientSecretEnv`.
+`--auth user|oauth`, `--clientId`, `--clientSecret`, `--clientIdEnv`, `--clientSecretEnv`,
+`--transfer auto|filetransfer|legacy` (same as `DW_TRANSFER`; default `auto`).
 
 ## Gotchas
 
