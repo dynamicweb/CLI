@@ -51,26 +51,29 @@ test('parseJsonOrPath parses json from a file path', () => {
     }
 });
 
-test('parseJsonOrPath throws SyntaxError for a file containing invalid JSON', () => {
+test('parseJsonOrPath reports invalid JSON in a file as a command error', () => {
     const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'cli-command-test-'));
     const jsonPath = path.join(tempDir, 'bad.json');
 
     try {
         fs.writeFileSync(jsonPath, '{ not valid json }');
-        assert.throws(() => parseJsonOrPath(jsonPath), SyntaxError);
+        assert.throws(() => parseJsonOrPath(jsonPath), (err) => err.status === 400 && /Invalid JSON payload in .*bad\.json/.test(err.message));
     } finally {
         fs.rmSync(tempDir, { recursive: true, force: true });
     }
 });
 
-test('parseJsonOrPath throws SyntaxError for a non-existent file path', () => {
+test('parseJsonOrPath reports a non-existent file path as neither JSON nor a file', () => {
     const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'cli-command-test-'));
 
     try {
         const missingPath = path.join(tempDir, 'missing.json');
-        // existsSync returns false, so the path string is passed to JSON.parse directly
-        assert.throws(() => parseJsonOrPath(missingPath), SyntaxError);
+        assert.throws(() => parseJsonOrPath(missingPath), (err) => err.status === 400 && /is neither/.test(err.message));
     } finally {
         fs.rmSync(tempDir, { recursive: true, force: true });
     }
+});
+
+test('parseJsonOrPath reports invalid literal JSON as a command error', () => {
+    assert.throws(() => parseJsonOrPath('{ "model": '), (err) => err.status === 400 && /^Invalid JSON payload: /.test(err.message));
 });

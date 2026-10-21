@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { createInstallOutput } from './install.js';
+import { createInstallOutput } from '../bin/commands/install.js';
 
 test('createInstallOutput suppresses regular logs in json mode and emits the final envelope', () => {
     const logCalls = [];

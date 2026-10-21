@@ -2,8 +2,9 @@ import fetch from 'node-fetch';
 import path from 'path';
 import { setupEnv, getAgent, createCommandError } from './env.js';
 import { setupUser } from './login.js';
-import { interactiveConfirm } from '../utils.js';
 import { handleFiles } from './files.js';
+import { createOutput } from '../output.js';
+import { resolveTransfer } from '../transfer/index.js';
 
 export function foldersCommand() {
     return {
@@ -78,31 +79,28 @@ export function foldersCommand() {
 }
 
 async function handleFolders(argv, output) {
+    if (getFoldersOperation(argv) === 'unknown') {
+        throw createCommandError('No operation specified. Use one of --create, --rename, --move, --delete, --copy or --export.', 400);
+    }
+
     let env = await setupEnv(argv, output);
     let user = await setupUser(argv, env);
+    const transfer = await resolveTransfer(argv, env, user, output, { legacyOnly: Boolean(argv.export && argv.raw) });
+    const ft = transfer.client;
 
     if (argv.create) {
-        await createFolder(env, user, argv.folderPath, output);
+        await (ft ? ft.createDirectory(argv.folderPath, output) : createFolder(env, user, argv.folderPath, output));
     } else if (argv.rename) {
-        await renameFolder(env, user, argv.folderPath, argv.rename, output);
+        await (ft ? ft.renameDirectory(argv.folderPath, argv.rename, output) : renameFolder(env, user, argv.folderPath, argv.rename, output));
     } else if (argv.move) {
-        await moveFolder(env, user, argv.folderPath, argv.move, output);
+        await (ft ? ft.moveDirectory(argv.folderPath, argv.move, output) : moveFolder(env, user, argv.folderPath, argv.move, output));
     } else if (argv.delete) {
-        const action = argv.empty
-            ? `empty directory "${argv.folderPath}"`
-            : `delete directory "${argv.folderPath}"`;
-
-        if (output.json) {
-            await deleteFolderViaFiles(env, user, argv, output);
-        } else {
-            await interactiveConfirm(`Are you sure you want to ${action}?`, async () => {
-                await deleteFolderViaFiles(env, user, argv, output);
-            });
-        }
+        // handleFiles asks for confirmation outside JSON mode.
+        await deleteFolderViaFiles(env, user, transfer, argv, output);
     } else if (argv.copy) {
-        await copyFolderViaFiles(env, user, argv, output);
+        await copyFolderViaFiles(env, user, transfer, argv, output);
     } else if (argv.export) {
-        await exportFolderViaFiles(env, user, argv, output);
+        await exportFolderViaFiles(env, user, transfer, argv, output);
     }
 }
 
@@ -112,11 +110,15 @@ async function createFolder(env, user, folderPath, output) {
 
     output.log(`Creating directory: ${folderPath}`);
 
+    // DirectorySave takes the new name on the command and the parent in its model;
+    // a model without a Name creates the directory.
     const res = await fetch(`${env.protocol}://${env.host}/Admin/Api/DirectorySave`, {
         method: 'POST',
         body: JSON.stringify({
             Name: name,
-            ParentPath: parentPath === '.' ? '/' : parentPath
+            Model: {
+                ParentPath: parentPath === '.' ? '/' : parentPath
+            }
         }),
         headers: {
             'Authorization': `Bearer ${user.apiKey}`,
@@ -131,7 +133,6 @@ async function createFolder(env, user, folderPath, output) {
 
     const body = await parseJsonSafe(res);
 
-    output.setStatus(0);
     output.addData({ type: 'create', path: folderPath, response: body });
     output.log(`Successfully created: ${folderPath}`);
 }
@@ -144,10 +145,13 @@ async function renameFolder(env, user, folderPath, newName, output) {
 
     const res = await fetch(`${env.protocol}://${env.host}/Admin/Api/DirectorySave`, {
         method: 'POST',
+        // The model identifies the existing directory; the command Name is the new name.
         body: JSON.stringify({
             Name: newName,
-            ParentPath: parentPath === '.' ? '/' : parentPath,
-            CurrentName: currentName
+            Model: {
+                Name: currentName,
+                ParentPath: parentPath === '.' ? '/' : parentPath
+            }
         }),
         headers: {
             'Authorization': `Bearer ${user.apiKey}`,
@@ -162,7 +166,6 @@ async function renameFolder(env, user, folderPath, newName, output) {
 
     const body = await parseJsonSafe(res);
 
-    output.setStatus(0);
     output.addData({ type: 'rename', path: folderPath, newName, response: body });
     output.log(`Successfully renamed "${currentName}" to "${newName}"`);
 }
@@ -189,37 +192,36 @@ async function moveFolder(env, user, sourcePath, destinationPath, output) {
 
     const body = await parseJsonSafe(res);
 
-    output.setStatus(0);
     output.addData({ type: 'move', sourcePath, destinationPath, response: body });
     output.log(`Successfully moved "${sourcePath}" to "${destinationPath}"`);
 }
 
-async function deleteFolderViaFiles(env, user, argv, output) {
+async function deleteFolderViaFiles(env, user, transfer, argv, output) {
     await handleFiles({
         ...argv,
         dirPath: argv.folderPath,
         asDirectory: true,
         asFile: false
-    }, output);
+    }, output, { env, user, transfer });
 }
 
-async function copyFolderViaFiles(env, user, argv, output) {
+async function copyFolderViaFiles(env, user, transfer, argv, output) {
     await handleFiles({
         ...argv,
         dirPath: argv.folderPath,
         asDirectory: true,
         asFile: false
-    }, output);
+    }, output, { env, user, transfer });
 }
 
-async function exportFolderViaFiles(env, user, argv, output) {
+async function exportFolderViaFiles(env, user, transfer, argv, output) {
     await handleFiles({
         ...argv,
         dirPath: argv.folderPath,
         outPath: argv.outPath,
         asDirectory: true,
         asFile: false
-    }, output);
+    }, output, { env, user, transfer });
 }
 
 async function parseJsonSafe(res) {
@@ -231,54 +233,7 @@ async function parseJsonSafe(res) {
 }
 
 function createFoldersOutput(argv) {
-    const response = {
-        ok: true,
-        command: 'folders',
-        operation: getFoldersOperation(argv),
-        status: 0,
-        data: [],
-        errors: [],
-        meta: {}
-    };
-
-    return {
-        json: argv.output === 'json',
-        verbose: Boolean(argv.verbose),
-        response,
-        log(...args) {
-            if (!this.json) {
-                console.log(...args);
-            }
-        },
-        verboseLog(...args) {
-            if (this.verbose && !this.json) {
-                console.info(...args);
-            }
-        },
-        addData(entry) {
-            response.data.push(entry);
-        },
-        mergeMeta(metaOrFn) {
-            const meta = typeof metaOrFn === 'function' ? metaOrFn(response.meta) : metaOrFn;
-            response.meta = { ...response.meta, ...meta };
-        },
-        setStatus(status) {
-            response.status = status;
-        },
-        fail(err) {
-            response.ok = false;
-            response.status = err?.status || 1;
-            response.errors.push({
-                message: err?.message || 'Unknown folders command error.',
-                details: err?.details ?? null
-            });
-        },
-        finish() {
-            if (this.json) {
-                console.log(JSON.stringify(response, null, 2));
-            }
-        }
-    };
+    return createOutput({ command: 'folders', operation: getFoldersOperation(argv), argv });
 }
 
 function getFoldersOperation(argv) {

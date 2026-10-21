@@ -2,6 +2,7 @@ import fetch from 'node-fetch';
 import { interactiveEnv, getAgent, isJsonOutput, createCommandError } from './env.js'
 import { updateConfig, getConfig } from './config.js';
 import { input, password } from '@inquirer/prompts';
+import { createOutput } from '../output.js';
 
 const DEFAULT_OAUTH_TOKEN_PATH = '/Admin/OAuth/token';
 const DEFAULT_CLIENT_ID_ENV = 'DW_CLIENT_ID';
@@ -212,7 +213,7 @@ async function login(username, password, env, protocol, verbose) {
         return await getToken(user, env, protocol, verbose)
     }
     else {
-        if (verbose) console.info(res)
+        if (verbose) console.error(res)
         throw createCommandError(`Login attempt failed with username ${username}, please verify its a valid user in your Dynamicweb solution.`, res.status)
     }
 }
@@ -247,7 +248,7 @@ async function getToken(user, env, protocol, verbose) {
         return (await res.json()).token
     }
     else {
-        if (verbose) console.info(res)
+        if (verbose) console.error(res)
         throw createCommandError(`Could not fetch the token for the logged in user ${user}, please verify its a valid user in your Dynamicweb solution.`, res.status)
     }
 }
@@ -272,7 +273,7 @@ async function getApiKey(token, env, protocol, verbose) {
         return (await res.json()).message
     }
     else {
-        if (verbose) console.info(res)
+        if (verbose) console.error(res)
         throw createCommandError(`Could not create an API Key for the logged in user, please verify its a valid user in your Dynamicweb solution.`, res.status)
     }
 }
@@ -487,7 +488,7 @@ async function fetchOAuthToken(env, oauthConfig, verbose) {
 
     if (!res.ok) {
         if (verbose) {
-            console.info(res);
+            console.error(res);
         }
 
         throw createCommandError(`OAuth token request failed at ${DEFAULT_OAUTH_TOKEN_PATH}.`, res.status, body);
@@ -537,35 +538,11 @@ function verboseLog(argv, ...args) {
 }
 
 function createLoginOutput(argv) {
-    const response = {
-        ok: true,
+    return createOutput({
         command: 'login',
         operation: shouldUseOAuth(argv, getCurrentEnv(argv)) ? 'oauth-login' : argv.user ? 'select-user' : 'login',
-        status: 0,
-        data: [],
-        errors: [],
-        meta: {}
-    };
-
-    return {
-        json: isJsonOutput(argv),
-        addData(entry) {
-            response.data.push(entry);
-        },
-        fail(err) {
-            response.ok = false;
-            response.status = err?.status || 1;
-            response.errors.push({
-                message: err?.message || 'Unknown login command error.',
-                details: err?.details ?? null
-            });
-        },
-        finish() {
-            if (this.json) {
-                console.log(JSON.stringify(response, null, 2));
-            }
-        }
-    };
+        argv
+    });
 }
 
 async function parseJsonSafe(res) {

@@ -17,10 +17,10 @@ If you need to do something once, interactively, the DynamicWeb backend UI is us
 Version 2 is an automation-first overhaul. The headline changes:
 
 - **OAuth client credentials** -- the CLI can now authenticate with an OAuth 2.0 client ID and secret, removing the need for an interactive login in CI/CD pipelines and service-account scenarios. See [Authentication](#authentication) for setup details.
-- **Structured JSON output** -- every API-driven command (`env`, `login`, `files`, `folders`, `query`, `command`, `install`) supports `--output json`, returning a consistent envelope with `ok`, `status`, `data`, `errors`, and `meta` fields. Interactive prompts are suppressed in JSON mode so output is safe to pipe. See [Automation and JSON output](#automation-and-json-output).
+- **Structured JSON output** -- every API-driven command (`env`, `login`, `files`, `folders`, `query`, `command`, `install`, `database`) and `swift` support `--output json`, returning a consistent envelope with `ok`, `status`, `data`, `errors`, and `meta` fields. Interactive prompts are suppressed in JSON mode so output is safe to pipe. See [Automation and JSON output](#automation-and-json-output).
 - **File delete, copy, and move** -- the `files` command can now delete, copy, and move files and directories on the environment in addition to listing, exporting, and importing. See the [files command reference](#files).
 - **Folder management** -- the new `folders` command creates, renames, moves, deletes, copies, and exports directories. It always treats the path as a directory, removing the file-extension ambiguity that `dw files` has. See the [folders command reference](#folders).
-- **Consistent error model** -- commands that previously printed a message and exited silently now return structured errors (in JSON mode) or throw with a non-zero exit code. Scripts can rely on exit code `1` and the `errors` array for programmatic error handling.
+- **Consistent error model** -- every command exits with code `1` on failure and reports the error in the `errors` array (JSON mode) or on stderr. Successful runs write nothing to stderr. Scripts can rely on the exit code and the `errors` array for programmatic error handling.
 
 ### Migrating from v1
 
@@ -35,7 +35,7 @@ No changes are required for existing scripts that do not use `--json` or `--iams
 
 ## Installation
 
-The CLI requires **Node.js 20.12.0 or later**.
+The CLI requires **Node.js 20.19.0 or later** (on Node.js 22, 22.12.0 or later).
 
 Install from npm:
 
@@ -166,7 +166,7 @@ Use `--auth user` to force user authentication even when an environment is confi
 
 ## Automation and JSON output
 
-Commands that talk to the Management API -- `env`, `login`, `files`, `folders`, `query`, `command`, and `install` -- support `--output json`. The `database`, `swift`, and `config` commands do not support `--output json`. This returns a structured envelope instead of human-readable console output:
+Every command except `config` supports `--output json`. This returns a structured envelope instead of human-readable console output:
 
 ```json
 {
@@ -192,12 +192,12 @@ Commands that talk to the Management API -- `env`, `login`, `files`, `folders`, 
 | `ok` | `boolean` | `true` if the operation succeeded |
 | `command` | `string` | Which CLI command ran |
 | `operation` | `string` | The specific operation within that command |
-| `status` | `number` | `0` on success, `1` on failure |
+| `status` | `number` | `0` on success. On failure, the HTTP status code returned by the Management API, or `1` when the failure happened in the CLI |
 | `data` | `array` | The result payload |
 | `errors` | `array` | Error objects with `message` and `details` if the operation failed |
 | `meta` | `object` | Command-specific metadata (query name, file counts, etc.) |
 
-When `--output json` is active, all human-readable output to stdout is suppressed. Only the JSON envelope is written to stdout, which makes it safe to pipe.
+When `--output json` is active, all human-readable output to stdout is suppressed and interactive prompts are never shown -- a command that would need one fails instead. Only the JSON envelope is written to stdout, which makes it safe to pipe.
 
 ### Parsing output in scripts
 
@@ -235,7 +235,7 @@ When a command fails, `ok` is `false` and the `errors` array contains structured
 }
 ```
 
-The CLI exits with code `1` on any error, so you can use standard shell exit-code checks alongside JSON parsing.
+The CLI exits with code `1` on any error, so you can use standard shell exit-code checks alongside JSON parsing. Outside JSON mode, the error message is written to stderr (add `--verbose` to include the API's error details). A successful run writes nothing to stderr, so runners configured to fail on stderr output -- such as PowerShell with `$ErrorActionPreference = 'Stop'` -- only stop on real failures.
 
 ## CI/CD
 
@@ -284,9 +284,7 @@ On long-lived runners, configure the environment once:
 
 ```sh
 # One-time setup
-dw env production
-dw config --env.production.host your-solution.example.com
-dw config --env.production.protocol https
+dw env production --host https://your-solution.example.com
 export DW_CLIENT_ID=my-client-id
 export DW_CLIENT_SECRET=my-client-secret
 dw login --oauth
@@ -329,6 +327,7 @@ These options are available on all API-driven commands:
 | `--clientIdEnv <var>` | Environment variable containing the OAuth client ID |
 | `--clientSecretEnv <var>` | Environment variable containing the OAuth client secret |
 | `--output json` | Return structured JSON instead of human-readable output |
+| `--transfer <mode>` | How `files`, `folders` and `install` move files: `auto` (default), `filetransfer` or `legacy`. See [File transfer](#file-transfer) |
 
 ### env
 
@@ -336,6 +335,7 @@ Create, select, or inspect saved environments.
 
 ```sh
 dw env dev                        # switch to (or create) the "dev" environment
+dw env dev --host https://dev.example.com  # create or update "dev" without prompting
 dw env                            # interactive setup for a new environment
 dw env --list                     # list all configured environments
 dw env production --users         # list saved users for "production"
@@ -428,6 +428,11 @@ dw files [dirPath] [outPath] [options]
 | `-af`, `--asFile` | Force the source path to be treated as a file |
 | `-ad`, `--asDirectory` | Force the source path to be treated as a directory |
 | `--dangerouslyIncludeLogsAndCache` | Include log and cache folders in export |
+| `--changed-only` | With `--import`/`--export`, transfer only files whose content differs. Requires the [File Transfer API](#file-transfer) |
+| `--fail-on-remote-change` | With `--import`, change nothing if a file to be replaced changed on the server since the last sync. Requires the File Transfer API |
+| `--verify` | With `--export`, check every downloaded file against its SHA-256 on the server. Requires the File Transfer API |
+
+`dw files` also has subcommands for syncing, deploying and inspecting -- see [Sync, deploy and inspect](#sync-deploy-and-inspect). Because of them, a remote directory literally named `diff`, `sync`, `deploy`, `rollback`, `stat` or `usage` must be written with a leading `/` or `./` (for example `dw files /stat -l`).
 
 **Examples:**
 
@@ -453,13 +458,13 @@ dw files /Templates/Designs/OldDesign --delete
 # Empty a directory (remove contents, keep the directory)
 dw files /Templates/Designs/MyDesign --delete --empty
 
-# Copy a directory within the environment
-dw files /Templates/Designs/MyDesign --copy /Templates/Designs/MyDesign-backup
+# Copy a directory into a backup folder (creates /Templates/Backups/MyDesign)
+dw files /Templates/Designs/MyDesign --copy /Templates/Backups
 
 # Copy a file to another directory
 dw files /Templates/config.json --copy /Templates/Backups
 
-# Move a directory
+# Move a directory into an archive folder (creates /Templates/Designs/Archive/OldName)
 dw files /Templates/Designs/OldName --move /Templates/Designs/Archive
 
 # Move a file with overwrite
@@ -485,13 +490,13 @@ dw files ./dist /Templates/Designs/MyDesign -iro \
 
 #### Copying and moving files and directories
 
-The `--copy` and `--move` flags operate on files and directories within the environment. Both accept a destination path as their value. These work with both files and directories -- the server handles detection.
+The `--copy` and `--move` flags operate on files and directories within the environment. The value is the **directory to copy or move into**: the item keeps its name, so `--copy /Templates/Backups` creates `/Templates/Backups/<name>`. To rename a directory, use `dw folders --rename`. These work with both files and directories -- the server handles detection.
 
-The `--overwrite` flag can be combined with `--move` to overwrite existing files at the destination.
+The `--overwrite` flag can be combined with `--move` (and, with the File Transfer API, `--copy`) to overwrite existing files at the destination.
 
 ```sh
-# Back up a design before deploying a new version
-dw files /Templates/Designs/MyDesign --copy /Templates/Designs/MyDesign-backup \
+# Back up a design before deploying a new version (creates /Templates/Backups/MyDesign)
+dw files /Templates/Designs/MyDesign --copy /Templates/Backups \
   --host "$TARGET_HOST" $AUTH_FLAGS --output json
 
 # Reorganize files on the server
@@ -587,7 +592,7 @@ dw files /Templates/Designs/OldDesign --delete --output json
 ```
 
 ```sh
-dw files /Templates/Designs/MyDesign --copy /Templates/Designs/MyDesign-backup --output json
+dw files /Templates/Designs/MyDesign --copy /Templates/Backups --output json
 ```
 
 ```json
@@ -600,7 +605,7 @@ dw files /Templates/Designs/MyDesign --copy /Templates/Designs/MyDesign-backup -
     {
       "type": "copy",
       "sourcePath": "/Templates/Designs/MyDesign",
-      "destination": "/Templates/Designs/MyDesign-backup"
+      "destination": "/Templates/Backups"
     }
   ],
   "errors": [],
@@ -674,7 +679,7 @@ dw folders /Files/MyFolder --delete
 dw folders /Files/MyFolder --delete --empty
 
 # Copy a directory
-dw folders /Files/MyFolder --copy /Files/MyFolder-backup
+dw folders /Files/MyFolder --copy /Files/Backups   # creates /Files/Backups/MyFolder
 
 # Export a directory to disk
 dw folders /Files/MyFolder --export --outPath ./local
@@ -892,9 +897,6 @@ Queued installation ensures all dependencies are in place before any add-in is a
 
 Export the current environment's database to a `.bacpac` file.
 
-> [!NOTE]
-> `database` does not support `--output json`.
-
 ```sh
 dw database ./backups --export
 ```
@@ -911,9 +913,6 @@ GO
 ### swift
 
 Download a Swift release from GitHub.
-
-> [!NOTE]
-> `swift` does not support `--output json`.
 
 ```sh
 dw swift [outPath] [options]
@@ -947,6 +946,126 @@ dw config --env.production.protocol https
 ```
 
 This is useful for scripting config updates without editing the JSON file manually.
+
+## File transfer
+
+`files`, `folders` and the upload step of `install` can move files in two ways:
+
+| Mode | Uses | Available on |
+|------|------|--------------|
+| `filetransfer` | The File Transfer API (`/Admin/Api/FileTransfer`): uploads in checksum-verified chunks that are assembled and swapped in atomically, streamed per-file downloads, and automatic retries of transient failures that are safe to repeat | Solutions that include the File Transfer API |
+| `legacy` | The original Management API endpoints: multipart uploads and zip-based exports | All DynamicWeb 10 solutions |
+
+By default (`auto`) the CLI checks once per command whether the solution provides the File Transfer API and uses it when it does. The commands, options and JSON output are the same either way; the envelope's `meta.transfer` says which was used and `meta.transferSource` why.
+
+Choose explicitly with, in order of precedence:
+
+1. `--transfer auto|filetransfer|legacy` on the command
+2. The `DW_TRANSFER` environment variable
+3. A `transfer` setting on the saved environment: `dw config --env.production.transfer legacy`
+
+An explicit `filetransfer` never falls back: if the solution does not provide the API the command fails, so a pipeline or test always runs what it asked for. An authentication failure during the check is reported as such, never treated as "not supported".
+
+```sh
+# Force each implementation, e.g. to compare them in a test
+DW_TRANSFER=filetransfer dw files ./dist /Templates/Designs/MyDesign -iro --output json
+DW_TRANSFER=legacy       dw files ./dist /Templates/Designs/MyDesign -iro --output json
+```
+
+Differences you may notice with `filetransfer`:
+
+- `--raw` (keep the zip) only exists in the legacy transfer. Under `auto` it uses legacy for that command; with `--transfer filetransfer` it is an error.
+- Exports are downloaded file by file instead of as a zip, so nothing is extracted locally. Log and cache folders are still left out unless `--dangerouslyIncludeLogsAndCache`.
+- Whether a path is a file or a directory is asked from the server, so `--asFile`/`--asDirectory` are only needed to override it.
+- Listing a directory that does not exist is an error (the legacy endpoint returns an empty listing).
+- Copying onto an existing item is an error (or replaces a file with `--overwrite`); the legacy endpoint creates "Copy of ...". Copying or moving into a directory that does not exist creates it; the legacy endpoints fail.
+- Interrupted downloads resume where they stopped, on the next attempt or the next run. The partial file is tied to the remote file's version, so a file that changed in between is downloaded whole rather than spliced.
+
+## Sync, deploy and inspect
+
+These `dw files` subcommands need the File Transfer API. On a solution without it, or with `--transfer legacy`, they fail with an error that says so. All support `--output json`.
+
+| Command | What it does |
+|---------|--------------|
+| `dw files diff <localPath> <remotePath>` | Compares a local directory with a remote one. Changes nothing |
+| `dw files sync <localPath> <remotePath>` | Makes the remote directory's contents match the local directory, uploading only what changed |
+| `dw files deploy <localPath> <remotePath>` | Replaces the remote directory with the local one in a single switch-over |
+| `dw files rollback <remotePath>` | Restores the version replaced by the last `deploy --keep-backup` |
+| `dw files stat <path>` | Size, modification time and version (eTag) of a remote file or directory; `--checksum` adds the SHA-256 |
+| `dw files usage [path]` | Total size and number of files and directories under a remote directory |
+
+`<remotePath>` is the directory whose **contents** should match `<localPath>`: `dw files sync ./dist Templates/Designs/MyDesign` makes `MyDesign` contain exactly what `dist` contains. (This differs from `--copy`/`--move`, which copy or move *into* a directory.)
+
+### How changes are detected
+
+A file is unchanged when its size and SHA-256 match. Sizes are compared first; the server is only asked to hash files whose size is the same, and not even then if the CLI already knows the hash of that exact version (see [Transfer state](#transfer-state)).
+
+`diff` lists each path as `+` new (only local), `~` changed, `-` remote only, or `!` a conflict, followed by a summary. Add `--show-unchanged` to list unchanged files too. The JSON output has the full list in `data[0].items` and the counts in `data[0].summary`:
+
+```json
+{ "new": 1, "changed": 2, "unchanged": 40, "remoteOnly": 1, "conflicts": 0, "directories": { "new": 0, "remoteOnly": 0 } }
+```
+
+### sync
+
+```sh
+dw files sync ./dist Templates/Designs/MyDesign                    # upload new and changed files
+dw files sync ./dist Templates/Designs/MyDesign --delete           # ...and delete what dist does not have
+dw files sync ./dist Templates/Designs/MyDesign --delete --dry-run # show what would change
+```
+
+Without `--delete`, remote files that do not exist locally are left alone. With it, they are deleted -- outside JSON mode the CLI asks first. Empty local directories are created remotely.
+
+### deploy and rollback
+
+```sh
+dw files deploy ./dist Templates/Designs/MyDesign --keep-backup
+dw files rollback Templates/Designs/MyDesign
+```
+
+`deploy` never edits the live directory file by file, so visitors never see a half-updated version:
+
+1. The live directory is copied, on the server, to a staging directory beside it (`MyDesign.dwdeploy-<timestamp>`).
+2. The staging copy is updated: new and changed files are uploaded and files not in `dist` are deleted.
+3. The live directory is renamed to `MyDesign.dwbackup-<timestamp>` and the staging directory renamed into its place. These are two renames on the same disk, milliseconds apart; if the second fails, the first is undone.
+4. The backup is deleted -- unless `--keep-backup`, in which case `dw files rollback` can put it back. One backup is kept per directory; the next deploy replaces it.
+
+Outside JSON mode, `deploy` shows the number of new, changed and removed files and asks before starting; `rollback` asks too. `deploy --dry-run` shows the plan without changing anything.
+
+If anything fails before step 3, the staging directory is removed and the live directory was never touched. Deploying to a directory that does not exist yet creates it. Deploying to the root of the file archive is not supported.
+
+The staging and backup directories are briefly (or, with `--keep-backup`, until the next deploy) visible next to the live one -- for example as an extra design under `Templates/Designs`.
+
+### Detecting changes made on the server
+
+`sync`, `deploy` and `files --import` accept `--fail-on-remote-change`. It stops the command, before anything is changed, if a file it would overwrite or delete changed on the server since the CLI last synced that directory:
+
+- **modified-remotely** -- the file's version (eTag) differs from the one the CLI recorded
+- **added-remotely** -- the file was not there at the last sync
+
+```sh
+dw files deploy ./dist Templates/Designs/MyDesign --fail-on-remote-change --output json
+# exit code 1, errors[0].details.code = "REMOTE_CHANGED", errors[0].details.conflicts lists the files
+```
+
+This protects against overwriting a hotfix someone made on the server. The first sync of a directory has nothing to compare with and sets the baseline. Changes the CLI makes with the legacy transfer are not recorded, so they count as remote changes. During the upload itself, `If-Match` makes the server refuse to replace a file that changed after the comparison.
+
+`diff` shows these conflicts too (marked `!`), without the flag.
+
+### Transfer state
+
+What the CLI learns about remote files -- each file's version (eTag) and SHA-256, which directories were synced, and the backup of the last deploy -- is stored in `~/.dwc` under `transferState`, per host.
+
+The versions `--fail-on-remote-change` compares against are only updated for files the CLI uploaded or confirmed to be identical to the local file. A file changed on the server that a command leaves alone -- not replaced because `--overwrite` was not given, or not deleted because `--delete` was not given -- keeps counting as a remote change until it is dealt with. Checksums fetched along the way (by `diff`, `stat --checksum` or `--verify`) are cached separately and never change that. It makes repeated diffs and syncs fast and enables `--fail-on-remote-change` and `rollback`. It is safe to delete: the next sync re-learns everything, and conflict detection starts over from a new baseline. On ephemeral CI runners the state starts empty on every run, so `--fail-on-remote-change` only protects within one run unless `~/.dwc` is cached between runs.
+
+### Inspecting remote files
+
+```sh
+dw files stat Templates/Designs/MyDesign/dist/app.js --checksum
+dw files usage Templates/Designs
+```
+
+`--checksum` hashes the file on the server; compare it with a local `sha256sum` to confirm a deployed file is exactly the one you built.
 
 ## Troubleshooting
 

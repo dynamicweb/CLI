@@ -4,8 +4,9 @@ import fs from 'fs';
 import { setupEnv, getAgent, createCommandError } from './env.js';
 import { setupUser } from './login.js';
 import { isRemoteParam, redactUrl } from '../utils.js';
+import { createOutput } from '../output.js';
 
-const exclude = ['_', '$0', 'command', 'list', 'json', 'verbose', 'v', 'host', 'protocol', 'apiKey', 'env', 'output', 'auth', 'clientId', 'clientSecret', 'clientIdEnv', 'clientSecretEnv', 'oauth']
+const exclude = ['_', '$0', 'command', 'list', 'json', 'verbose', 'v', 'host', 'protocol', 'apiKey', 'env', 'output', 'auth', 'clientId', 'clientSecret', 'clientIdEnv', 'clientSecretEnv', 'oauth', 'transfer']
 const isCommandParam = isRemoteParam(exclude)
 
 export function commandCommand() {
@@ -72,13 +73,15 @@ export function getQueryParams(argv) {
 export function parseJsonOrPath(json) {
     if (!json) return
     const trimmed = json.trim();
-    if (trimmed.startsWith('{') || trimmed.startsWith('[')) {
-        return JSON.parse(trimmed);
+    const literal = trimmed.startsWith('{') || trimmed.startsWith('[');
+    if (!literal && !fs.existsSync(json)) {
+        throw createCommandError(`--json must be literal JSON or the path to a JSON file; "${json}" is neither.`, 400);
     }
-    if (fs.existsSync(json)) {
-        return JSON.parse(fs.readFileSync(path.resolve(json)));
+    try {
+        return JSON.parse(literal ? trimmed : fs.readFileSync(path.resolve(json), 'utf8'));
+    } catch (err) {
+        throw createCommandError(`Invalid JSON payload${literal ? '' : ` in ${json}`}: ${err.message}`, 400);
     }
-    return JSON.parse(json);
 }
 
 async function runCommand(env, user, command, queryParams, data) {
@@ -98,50 +101,13 @@ async function runCommand(env, user, command, queryParams, data) {
 }
 
 function createCommandOutput(argv) {
-    const response = {
-        ok: true,
+    return createOutput({
         command: 'command',
         operation: argv.list ? 'list' : 'run',
-        status: 0,
-        data: [],
-        errors: [],
-        meta: {
-            commandName: argv.command
-        }
-    };
-
-    return {
-        json: argv.output === 'json',
-        response,
-        log(value) {
-            if (!this.json) {
-                console.log(value);
-            }
-        },
-        verboseLog(...args) {
-            if (argv.verbose && !this.json) {
-                console.info(...args);
-            }
-        },
-        addData(entry) {
-            response.data.push(entry);
-        },
-        fail(err) {
-            response.ok = false;
-            response.status = err?.status || 1;
-            response.errors.push({
-                message: err?.message || 'Unknown command error.',
-                details: err?.details ?? null
-            });
-        },
-        finish() {
-            if (this.json) {
-                console.log(JSON.stringify(response, null, 2));
-            }
-        }
-    };
+        argv,
+        meta: { commandName: argv.command }
+    });
 }
-
 
 async function parseJsonSafe(res) {
     try {

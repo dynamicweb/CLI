@@ -561,10 +561,21 @@ async function cleanupRemoteTargets(alwaysAttempt) {
         return;
     }
 
-    for (const target of cleanupTargets) {
+    const targets = [...cleanupTargets];
+    // The flows share one run folder; remove it too once its subfolders are gone.
+    if (targets.length > 0) {
+        const last = targets[targets.length - 1];
+        targets.push({
+            name: 'run',
+            remoteRoot: path.posix.join(config.remoteRoot, runId),
+            authArgs: last.authArgs
+        });
+    }
+
+    for (const target of targets) {
         try {
             const response = await runCliJson(`cleanup-${target.name}`, [
-                'files',
+                'folders',
                 target.remoteRoot,
                 '--delete',
                 '--output', 'json',

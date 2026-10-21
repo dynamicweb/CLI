@@ -71,6 +71,10 @@ yargs(hideBin(process.argv))
     .option('clientSecretEnv', {
         description: 'Environment variable name that contains the OAuth client secret'
     })
+    .option('transfer', {
+        choices: ['auto', 'filetransfer', 'legacy'],
+        description: 'How files are moved by files, folders and install: the File Transfer API, the legacy endpoints, or auto-detect (default). Also settable with DW_TRANSFER'
+    })
     .demandCommand()
     .parse()
 
@@ -78,7 +82,14 @@ function baseCommand() {
     return {
         command: '$0',
         describe: 'Shows the current env and user being used',
-        handler: () => {
+        handler: (argv) => {
+            // Anything left over is a mistyped command (`dw fiels`); failing keeps a
+            // script from treating it as a successful run.
+            if (argv._.length > 0) {
+                console.error(`Unknown command: ${argv._.join(' ')}. Run "dw --help" for the list of commands.`);
+                process.exitCode = 1;
+                return;
+            }
             const cfg = getConfig();
             if (Object.keys(cfg).length === 0) {
                 console.log('To login to a solution use `dw login`')

@@ -7,11 +7,11 @@ A CLI for managing DynamicWeb 10 solutions — environments, authentication, que
 | **DW CLI** (this repo) | Automation, CI/CD pipelines, scripting, headless environments |
 | **[DW Desktop](https://github.com/dynamicweb/dw-desktop)** | Day-to-day developer workflows with a GUI |
 
-This branch now targets `2.0.0-preview.1`.
+This branch targets the `2.0` preview.
 
 ## Requirements
 
-- Node.js `>=20.12.0`
+- Node.js `^20.19.0` or `>=22.12.0`
 
 ## Install
 
@@ -40,11 +40,11 @@ npm install -g .
 
 The `2.0` preview is a substantial overhaul focused on automation and modern authentication.
 
-- Automation-first command output: `env`, `login`, `files`, `folders`, `query`, `command`, and `install` now support `--output json` so scripts and pipelines can consume structured results instead of plain console logs.
+- Automation-first command output: `env`, `login`, `files`, `folders`, `query`, `command`, `install`, `database`, and `swift` now support `--output json` so scripts and pipelines can consume structured results instead of plain console logs.
 - OAuth client credentials support: the CLI can now authenticate with OAuth 2.0 `client_credentials`, which makes headless and CI/CD usage much easier.
 - Better environment handling: protocol, host, and auth details are stored more cleanly in `~/.dwc`, while one-off runs can still override host and credentials directly.
 - Improved file workflows: file import, export, recursive sync, raw archive export, progress reporting, and source-type override flags make file operations more predictable.
-- Clearer error reporting: commands can now return structured failures in JSON mode, which is much easier to handle in automation.
+- Clearer error reporting: every command exits with code `1` on failure. In JSON mode the failure is in the envelope's `errors` array; otherwise it is printed to stderr. Successful runs write nothing to stderr, so scripts that treat stderr output as failure work as expected.
 
 ## Quick Start
 
@@ -168,16 +168,36 @@ Most API-driven commands support these global options:
 - `--clientSecret`: pass an OAuth client secret directly
 - `--clientIdEnv`: read the OAuth client ID from an environment variable
 - `--clientSecretEnv`: read the OAuth client secret from an environment variable
+- `--transfer`: how `files`, `folders` and `install` move files — `auto` (default), `filetransfer` or `legacy`
+
+## File Transfer
+
+On solutions that include the File Transfer API (`/Admin/Api/FileTransfer`), `files`, `folders` and `install` use it automatically: uploads go in checksum-verified chunks and are swapped in atomically, exports are streamed file by file, and transient failures are retried safely. Older solutions keep using the original endpoints. Commands, options and JSON output are the same either way; `meta.transfer` in the JSON output says which was used.
+
+Force one or the other with `--transfer filetransfer|legacy`, the `DW_TRANSFER` environment variable, or a saved setting (`dw config --env.dev.transfer legacy`). A forced `filetransfer` fails instead of falling back when the solution does not provide the API. `--raw` exports (keep the zip) only exist in the legacy transfer.
+
+With the File Transfer API, `dw files` can also sync and deploy:
+
+```sh
+dw files diff ./dist Templates/Designs/MyDesign                 # what differs, changes nothing
+dw files sync ./dist Templates/Designs/MyDesign --delete        # upload only changes, remove what dist lacks
+dw files deploy ./dist Templates/Designs/MyDesign --keep-backup # swap in the new version in one step
+dw files rollback Templates/Designs/MyDesign                    # put the previous version back
+dw files stat Templates/Designs/MyDesign/app.js --checksum
+dw files usage Templates/Designs
+```
+
+`--fail-on-remote-change` (on `sync`, `deploy` and `--import`) stops before changing anything if files were edited on the server since the last sync. `--changed-only` skips unchanged files on `--import`/`--export`, and `--verify` checks exported files against their SHA-256 on the server. What the CLI knows about synced files is kept in `~/.dwc` under `transferState`. See [cliv2-documentation.md](cliv2-documentation.md#sync-deploy-and-inspect) for details.
 
 ## JSON Output for Automation
 
-Commands that support `--output json` return a machine-readable envelope with `ok`, `status`, `data`, `errors`, and `meta` fields.
+Commands that support `--output json` return a machine-readable envelope with `ok`, `status`, `data`, `errors`, and `meta` fields. `status` is `0` on success; on failure it is the HTTP status code returned by the DynamicWeb API, or `1` when the failure happened in the CLI. The process exit code is `1` on any failure. Interactive prompts are never shown in JSON mode.
 
 Examples:
 
 ```sh
 dw env --list --output json
-dw login --output json
+dw login --oauth --output json
 dw query FileByName --name DefaultMail.html --output json
 ```
 
@@ -207,6 +227,7 @@ Create, select, or inspect saved environments.
 
 ```sh
 dw env dev
+dw env dev --host https://dev.example.com   # create or update without prompting
 dw env --list
 dw env --users
 dw env --list --output json
@@ -480,6 +501,7 @@ Export the current environment database to a `.bacpac` file.
 
 ```sh
 dw database ./backups --export
+dw database ./backups --export --output json
 ```
 
 ### `dw swift [outPath]`
@@ -490,6 +512,7 @@ Download the latest Swift release, a specific tag, or the nightly build.
 dw swift -l
 dw swift . --tag v2.3.0 --force
 dw swift . --nightly --force
+dw swift -l --output json
 ```
 
 ## CI/CD
@@ -511,7 +534,12 @@ dw query HealthCheck \
   --output json
 ```
 
-For longer-lived runners, you can configure a saved environment once with `dw login --oauth`. Full CI/CD guidance will be expanded in the documentation.
+For longer-lived runners, configure a saved environment once without any prompts:
+
+```sh
+dw env production --host https://your-solution.example.com
+dw login --oauth --output json
+```
 
 ## QA Smoke Testing
 

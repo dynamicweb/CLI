@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Development Setup
 
-Pure ESM JavaScript (`"type": "module"`), no build step. Node.js >=20.12.0 required.
+Pure ESM JavaScript (`"type": "module"`), no build step. Node.js `^20.19.0 || >=22.12.0` required.
 
 `npm install -g .` makes `dw` available globally from source.
 
@@ -14,10 +14,32 @@ No linter is configured.
 
 ## Conventions
 
+### File transfer
+
+`files`, `folders` and `install` call `resolveTransfer()` ([bin/transfer/index.js](bin/transfer/index.js))
+and branch per operation: `transfer.client` is the File Transfer API client
+([bin/transfer/filetransfer.js](bin/transfer/filetransfer.js)), or `null` for the legacy code that stays in
+the command files. Both must keep the same semantics and JSON output shapes — scripts must not be able
+to tell them apart except via `meta.transfer`. Notably `--copy`/`--move <dest>` mean "into `dest`".
+Verify behaviour changes against both: `DW_TRANSFER=legacy` and `DW_TRANSFER=filetransfer`.
+
+The File-Transfer-only features (`dw files diff/sync/deploy/rollback/stat/usage` in
+[bin/commands/files-subcommands.js](bin/commands/files-subcommands.js), `--changed-only`,
+`--fail-on-remote-change`, `--verify`) are built on the plan in [bin/transfer/sync.js](bin/transfer/sync.js)
+and the transfer state in [bin/transfer/state.js](bin/transfer/state.js), which lives in `~/.dwc` under
+`transferState`. Tests that touch the state must point `HOME`/`USERPROFILE` at a temp folder before
+importing CLI modules (see [test/sync.test.js](test/sync.test.js)); [test/helpers/fake-filetransfer.js](test/helpers/fake-filetransfer.js)
+is an in-memory File Transfer API for tests.
+
 ### Output envelope
 
-Every command handler builds a local output object (`createXxxOutput(argv)`) and follows the same
-try/catch/finally shape: `output.fail(err)` on error, `output.finish()` in `finally`.
+Every command handler builds its output object with `createOutput()` from [bin/output.js](bin/output.js)
+and follows the same try/catch/finally shape: `output.fail(err)` and `process.exitCode = 1` on error,
+`output.finish()` in `finally`. `finish()` prints the JSON envelope in JSON mode and the errors to
+stderr otherwise, so throw `createCommandError()` rather than logging and returning, and never call
+`process.exit()`. A successful run must write nothing to stderr — some callers treat stderr as failure.
+
+Tests live in `test/`, not `bin/` (everything under `bin/` is published to npm).
 
 All user-facing logging must go through `output.log()` rather than `console.log()` directly, so it is
 suppressed when `--output json` is set. This is the easiest thing to get wrong — a stray `console.log`

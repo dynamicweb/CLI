@@ -2,6 +2,7 @@ import { updateConfig, getConfig } from './config.js'
 import { Agent as HttpAgent } from 'http';
 import { Agent as HttpsAgent } from 'https';
 import { input } from '@inquirer/prompts';
+import { createOutput } from '../output.js';
 
 const httpAgent = new HttpAgent({
     keepAlive: true,
@@ -49,7 +50,7 @@ export function parseHostInput(hostValue) {
 export function envCommand() {
     return {
         command: 'env [env]',
-        describe: 'If environment is specified, changes the current environment to the environment specified, otherwise sets up the config for a new environment',
+        describe: 'If environment is specified, changes the current environment to the environment specified, otherwise sets up the config for a new environment. Combine [env] with --host to create or update an environment without prompting',
         builder: (yargs) => {
             return yargs
                 .positional('env', {
@@ -154,6 +155,9 @@ async function handleEnv(argv, output) {
         output.addData({ environments });
         output.log(`Existing environments: ${environments}`);
     } else {
+        if (isJsonOutput(argv)) {
+            throw createCommandError('Interactive environment setup is not supported with --output json. Use "dw env <name> --host <host>" instead.', 400);
+        }
         await interactiveEnv(argv, {
             environment: {
                 type: 'input'
@@ -217,11 +221,17 @@ export async function interactiveEnv(argv, options, output) {
 }
 
 async function changeEnv(argv, output) {
-    const environments = getConfig().env || {};
+    const config = getConfig();
+    config.env = config.env || {};
 
-    if (!Object.hasOwn(environments, argv.env)) {
+    if (argv.host) {
+        const resolvedHost = parseHostInput(argv.host);
+        const env = config.env[argv.env] = config.env[argv.env] || {};
+        env.host = resolvedHost.host;
+        env.protocol = argv.protocol || resolvedHost.protocol;
+    } else if (!Object.hasOwn(config.env, argv.env)) {
         if (isJsonOutput(argv)) {
-            throw createCommandError(`The specified environment ${argv.env} doesn't exist, please create it`, 404);
+            throw createCommandError(`The specified environment ${argv.env} doesn't exist, please create it with "dw env ${argv.env} --host <host>"`, 404);
         }
 
         logMessage(argv, `The specified environment ${argv.env} doesn't exist, please create it`);
@@ -241,19 +251,23 @@ async function changeEnv(argv, output) {
             }
         }, output)
         return null;
-    } else {
-        getConfig().current.env = argv.env;
-        updateConfig();
-        const data = {
-            environment: argv.env,
-            current: getConfig().current.env
-        };
-        logMessage(argv, `Your current environment is now ${getConfig().current.env}`);
-        if (output) {
-            output.addData(data);
-        }
-        return null;
     }
+
+    config.current = config.current || {};
+    config.current.env = argv.env;
+    updateConfig();
+    const env = config.env[argv.env];
+    const data = {
+        environment: argv.env,
+        protocol: env.protocol || null,
+        host: env.host || null,
+        current: config.current.env
+    };
+    logMessage(argv, `Your current environment is now ${config.current.env}`);
+    if (output) {
+        output.addData(data);
+    }
+    return null;
 }
 
 export function isJsonOutput(argv) {
@@ -280,38 +294,9 @@ function verboseLog(argv, ...args) {
 }
 
 function createEnvOutput(argv) {
-    const response = {
-        ok: true,
+    return createOutput({
         command: 'env',
         operation: argv.users ? 'users' : argv.list ? 'list' : argv.env ? 'select' : 'setup',
-        status: 0,
-        data: [],
-        errors: [],
-        meta: {}
-    };
-
-    return {
-        json: isJsonOutput(argv),
-        addData(entry) {
-            response.data.push(entry);
-        },
-        log(...args) {
-            if (!this.json) {
-                console.log(...args);
-            }
-        },
-        fail(err) {
-            response.ok = false;
-            response.status = err?.status || 1;
-            response.errors.push({
-                message: err?.message || 'Unknown env command error.',
-                details: err?.details ?? null
-            });
-        },
-        finish() {
-            if (this.json) {
-                console.log(JSON.stringify(response, null, 2));
-            }
-        }
-    };
+        argv
+    });
 }

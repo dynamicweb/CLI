@@ -64,6 +64,13 @@ npm run qa:smoke -- --mode saved-env
 npm run qa:smoke -- --mode ephemeral
 ```
 
+Run against each file transfer implementation (the CLI auto-detects by default):
+
+```sh
+DW_TRANSFER=filetransfer npm run qa:smoke
+DW_TRANSFER=legacy npm run qa:smoke
+```
+
 Artifacts are written to `qa/artifacts/<runId>/`.
 
 ## Configuration

@@ -3,6 +3,8 @@ import path from 'path';
 import { setupEnv, getAgent, createCommandError } from './env.js';
 import { setupUser } from './login.js';
 import { uploadFiles, resolveFilePath } from './files.js';
+import { createOutput } from '../output.js';
+import { resolveTransfer } from '../transfer/index.js';
 
 export function installCommand() {
     return {
@@ -43,7 +45,8 @@ async function handleInstall(argv, output) {
     let env = await setupEnv(argv, output);
     let user = await setupUser(argv, env);
     let resolvedPath = resolveFilePath(argv.filePath);
-    await uploadFiles(env, user, [resolvedPath], 'System/AddIns/Local', false, true, output);
+    const transfer = await resolveTransfer(argv, env, user, output);
+    await uploadFiles(env, user, [resolvedPath], 'System/AddIns/Local', false, true, output, transfer);
     await installAddin(env, user, resolvedPath, argv.queue, output);
 }
 
@@ -98,57 +101,13 @@ async function installAddin(env, user, resolvedPath, queue, output) {
 }
 
 export function createInstallOutput(argv) {
-    const response = {
-        ok: true,
+    return createOutput({
         command: 'install',
         operation: argv.queue ? 'queue' : 'install',
-        status: 0,
-        data: [],
-        errors: [],
-        meta: {
-            filePath: argv.filePath
-        }
-    };
-
-    return {
-        json: argv.output === 'json',
-        response,
-        log(...args) {
-            if (!this.json) {
-                console.log(...args);
-            }
-        },
-        verboseLog(...args) {
-            if (argv.verbose && !this.json) {
-                console.info(...args);
-            }
-        },
-        addData(entry) {
-            response.data.push(entry);
-        },
-        mergeMeta(metaOrFn) {
-            const meta = typeof metaOrFn === 'function' ? metaOrFn(response.meta) : metaOrFn;
-            response.meta = {
-                ...response.meta,
-                ...meta
-            };
-        },
-        fail(err) {
-            response.ok = false;
-            response.status = err?.status || 1;
-            response.errors.push({
-                message: err?.message || 'Unknown install command error.',
-                details: err?.details ?? null
-            });
-        },
-        finish() {
-            if (this.json) {
-                console.log(JSON.stringify(response, null, 2));
-            }
-        }
-    };
+        argv,
+        meta: { filePath: argv.filePath }
+    });
 }
-
 
 async function parseJsonSafe(res) {
     try {

@@ -3,8 +3,9 @@ import { setupEnv, getAgent, createCommandError } from './env.js';
 import { setupUser } from './login.js';
 import { input } from '@inquirer/prompts';
 import { isRemoteParam, redactUrl } from '../utils.js';
+import { createOutput } from '../output.js';
 
-const exclude = ['_', '$0', 'query', 'list', 'i', 'l', 'interactive', 'verbose', 'v', 'host', 'protocol', 'apiKey', 'env', 'output', 'auth', 'clientId', 'clientSecret', 'clientIdEnv', 'clientSecretEnv', 'oauth']
+const exclude = ['_', '$0', 'query', 'list', 'i', 'l', 'interactive', 'verbose', 'v', 'host', 'protocol', 'apiKey', 'env', 'output', 'auth', 'clientId', 'clientSecret', 'clientIdEnv', 'clientSecretEnv', 'oauth', 'transfer']
 const isQueryParam = isRemoteParam(exclude)
 
 export function queryCommand() {
@@ -38,9 +39,6 @@ export function queryCommand() {
                 await handleQuery(argv, output);
             } catch (err) {
                 output.fail(err);
-                if (!output.json) {
-                    console.error(err.stack || err.message || String(err));
-                }
                 process.exitCode = 1;
             } finally {
                 output.finish();
@@ -140,50 +138,13 @@ async function runQuery(env, user, query, params) {
 }
 
 function createQueryOutput(argv) {
-    const response = {
-        ok: true,
+    return createOutput({
         command: 'query',
         operation: argv.list ? 'list' : 'run',
-        status: 0,
-        data: [],
-        errors: [],
-        meta: {
-            query: argv.query
-        }
-    };
-
-    return {
-        json: argv.output === 'json',
-        response,
-        log(value) {
-            if (!this.json) {
-                console.log(value);
-            }
-        },
-        verboseLog(...args) {
-            if (argv.verbose && !this.json) {
-                console.info(...args);
-            }
-        },
-        addData(entry) {
-            response.data.push(entry);
-        },
-        fail(err) {
-            response.ok = false;
-            response.status = err?.status || 1;
-            response.errors.push({
-                message: err?.message || 'Unknown query command error.',
-                details: err?.details ?? null
-            });
-        },
-        finish() {
-            if (this.json) {
-                console.log(JSON.stringify(response, null, 2));
-            }
-        }
-    };
+        argv,
+        meta: { query: argv.query }
+    });
 }
-
 
 async function parseJsonSafe(res) {
     try {

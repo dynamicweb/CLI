@@ -1,18 +1,24 @@
-import fetch from 'node-fetch';
+import fetch, { FormData, File, fileFrom } from 'node-fetch';
 import path from 'path';
 import fs from 'fs';
-import FormData from 'form-data';
 import { setupEnv, getAgent, createCommandError } from './env.js';
 import { setupUser } from './login.js';
 import { interactiveConfirm, formatBytes, createThrottledStatusUpdater } from '../utils.js';
 import { downloadWithProgress, tryGetFileNameFromResponse } from '../downloader.js';
-import { extractWithProgress } from '../extractor.js';
+import { extractWithProgress, resolvesWithinRoot } from '../extractor.js';
+import { createOutput } from '../output.js';
+import { requireFileTransfer, resolveTransfer } from '../transfer/index.js';
+import { applyPush, assertNoConflicts, blockingConflicts, buildPlan, recordRemoteRoot, verifiedHashes } from '../transfer/sync.js';
+import { filesSubcommands } from './files-subcommands.js';
 
 export function filesCommand() {
     return {
         command: 'files [dirPath] [outPath]',
         describe: 'Handles files',
         builder: (yargs) => {
+            for (const subcommand of filesSubcommands()) {
+                yargs.command(subcommand);
+            }
             return yargs
                 .positional('dirPath', {
                     describe: 'The directory to list or export'
@@ -97,6 +103,18 @@ export function filesCommand() {
                     describe: 'Forces the command to treat the path as a directory, even if its name contains a dot.',
                     conflicts: 'asFile'
                 })
+                .option('changedOnly', {
+                    type: 'boolean',
+                    describe: 'Used with import and export, transfers only files whose content differs (File Transfer API)'
+                })
+                .option('failOnRemoteChange', {
+                    type: 'boolean',
+                    describe: 'Used with import, stops without changing anything if files changed on the server since the last sync (File Transfer API)'
+                })
+                .option('verify', {
+                    type: 'boolean',
+                    describe: 'Used with export, checks every downloaded file against the SHA-256 on the server (File Transfer API)'
+                })
                 .option('output', {
                     choices: ['json'],
                     describe: 'Outputs a single JSON response for automation-friendly parsing'
@@ -130,14 +148,26 @@ export function filesCommand() {
     }
 }
 
-export async function handleFiles(argv, output) {
-    let env = await setupEnv(argv, output);
-    let user = await setupUser(argv, env);
+export async function handleFiles(argv, output, context = {}) {
+    if (getFilesOperation(argv) === 'unknown') {
+        throw createCommandError('No operation specified. Use one of --list, --export, --import, --delete, --copy or --move.', 400);
+    }
+
+    const env = context.env ?? await setupEnv(argv, output);
+    const user = context.user ?? await setupUser(argv, env);
+    // Keeping the zip (--raw) of a directory export only exists in the legacy transfer.
+    const rawArchive = Boolean(argv.export && argv.raw && !(argv.dirPath && isFilePath(argv, argv.dirPath)));
+    const transfer = context.transfer ?? await resolveTransfer(argv, env, user, output, { legacyOnly: rawArchive });
+    const ft = transfer.client;
+    for (const [flag, applies] of [['--changedOnly', argv.changedOnly && (argv.import || argv.export)], ['--failOnRemoteChange', argv.failOnRemoteChange && argv.import], ['--verify', argv.verify && argv.export]]) {
+        if (applies) requireFileTransfer(transfer, flag);
+    }
 
     if (argv.list) {
         output.verboseLog(`Listing directory at: ${argv.dirPath}`);
-        let files = (await getFilesStructure(env, user, argv.dirPath, argv.recursive, argv.includeFiles)).model;
-        output.setStatus(200);
+        let files = ft
+            ? await ft.list(argv.dirPath, argv.recursive, argv.includeFiles)
+            : (await getFilesStructure(env, user, argv.dirPath, argv.recursive, argv.includeFiles)).model;
         output.addData(files);
         if (!output.json) {
             output.log(files.name);
@@ -150,9 +180,19 @@ export async function handleFiles(argv, output) {
     if (argv.export) {
         if (argv.dirPath) {
 
-            const isFile = isFilePath(argv, argv.dirPath);
+            // The File Transfer API knows what the path is, so it needs no guessing from
+            // the extension unless --asFile/--asDirectory say otherwise.
+            const isFile = ft && !argv.asFile && !argv.asDirectory
+                ? await ft.isFile(argv.dirPath) ?? isFilePath(argv, argv.dirPath)
+                : isFilePath(argv, argv.dirPath);
 
-            if (isFile) {
+            if (ft) {
+                if (isFile) {
+                    await ft.downloadFile(argv.dirPath, argv.outPath, output, { verify: argv.verify, changedOnly: argv.changedOnly });
+                } else {
+                    await ft.downloadDirectory(argv.dirPath, argv.outPath, { includeLogsAndCache: argv.dangerouslyIncludeLogsAndCache, verify: argv.verify, changedOnly: argv.changedOnly }, output);
+                }
+            } else if (isFile) {
                 let parentDirectory = path.dirname(argv.dirPath);
                 parentDirectory = parentDirectory === '.' ? '/' : parentDirectory;
 
@@ -163,6 +203,10 @@ export async function handleFiles(argv, output) {
         } else {
             const fullExport = async () => {
                 output.log('Full export is starting');
+                if (ft) {
+                    await ft.downloadDirectory('', argv.outPath, { includeLogsAndCache: argv.dangerouslyIncludeLogsAndCache, verify: argv.verify, changedOnly: argv.changedOnly }, output);
+                    return;
+                }
                 let filesStructure = (await getFilesStructure(env, user, '/', false, true)).model;
                 let dirs = filesStructure.directories;
                 for (let id = 0; id < dirs.length; id++) {
@@ -180,14 +224,20 @@ export async function handleFiles(argv, output) {
             }
         }
     } else if (argv.import) {
-        if (argv.dirPath && argv.outPath) {
-            let resolvedPath = path.resolve(argv.dirPath);
-            if (argv.recursive) {
-                await processDirectory(env, user, resolvedPath, argv.outPath, resolvedPath, argv.createEmpty, true, argv.overwrite, output);
-            } else {
-                let filesInDir = getFilesInDirectory(resolvedPath);
-                await uploadFiles(env, user, filesInDir, argv.outPath, argv.createEmpty, argv.overwrite, output);
-            }
+        if (!argv.dirPath) {
+            throw createCommandError('A local source path [dirPath] is required for import operations.', 400);
+        }
+        let resolvedPath = path.resolve(argv.dirPath);
+        if (!fs.existsSync(resolvedPath)) {
+            throw createCommandError(`Local path "${argv.dirPath}" does not exist.`, 404);
+        }
+        if (ft && (argv.changedOnly || argv.failOnRemoteChange)) {
+            await importChanged(ft, argv, resolvedPath, output);
+        } else if (argv.recursive && fs.statSync(resolvedPath).isDirectory()) {
+            await processDirectory(env, user, resolvedPath, argv.outPath, resolvedPath, argv.createEmpty, true, argv.overwrite, output, transfer);
+        } else {
+            let filesInDir = getFilesInDirectory(resolvedPath);
+            await uploadFiles(env, user, filesInDir, argv.outPath, argv.createEmpty, argv.overwrite, output, transfer);
         }
     } else if (argv.delete) {
         if (!argv.dirPath) {
@@ -210,24 +260,63 @@ export async function handleFiles(argv, output) {
                     : `delete directory "${argv.dirPath}"`;
 
             await interactiveConfirm(`Are you sure you want to ${action}?`, async () => {
-                await deleteRemote(env, user, argv.dirPath, isFile, argv.empty, output);
+                await (ft ? ft.remove(argv.dirPath, { empty: argv.empty }, output) : deleteRemote(env, user, argv.dirPath, isFile, argv.empty, output));
             });
         } else {
-            await deleteRemote(env, user, argv.dirPath, isFile, argv.empty, output);
+            await (ft ? ft.remove(argv.dirPath, { empty: argv.empty }, output) : deleteRemote(env, user, argv.dirPath, isFile, argv.empty, output));
         }
     } else if (argv.copy) {
         if (!argv.dirPath) {
             throw createCommandError('A source path [dirPath] is required for copy operations.', 400);
         }
 
-        await copyRemote(env, user, argv.dirPath, argv.copy, output);
+        await (ft ? ft.copy(argv.dirPath, argv.copy, argv.overwrite, output) : copyRemote(env, user, argv.dirPath, argv.copy, output));
     } else if (argv.move) {
         if (!argv.dirPath) {
             throw createCommandError('A source path [dirPath] is required for move operations.', 400);
         }
 
-        await moveRemote(env, user, argv.dirPath, argv.move, argv.overwrite, output);
+        await (ft ? ft.move(argv.dirPath, argv.move, argv.overwrite, output) : moveRemote(env, user, argv.dirPath, argv.move, argv.overwrite, output));
     }
+}
+
+/**
+ * Import through a plan: unchanged files are not uploaded again, and with
+ * --failOnRemoteChange nothing is uploaded if a file to be replaced changed on the server
+ * since the last sync. Import never deletes, and keeps its usual rules: existing files
+ * are only replaced with --overwrite, empty files only uploaded with --createEmpty.
+ */
+async function importChanged(ft, argv, resolvedPath, output) {
+    const plan = await buildPlan(ft, {
+        localRoot: resolvedPath,
+        remoteRoot: argv.outPath,
+        recursive: Boolean(argv.recursive)
+    });
+    if (argv.failOnRemoteChange) {
+        assertNoConflicts(blockingConflicts(plan, { overwrite: Boolean(argv.overwrite) }));
+    }
+
+    output.log('Uploading files');
+    const result = await applyPush(ft, plan, {
+        overwrite: Boolean(argv.overwrite),
+        guard: Boolean(argv.failOnRemoteChange),
+        skipEmpty: !argv.createEmpty
+    }, output);
+    await recordRemoteRoot(ft, plan, verifiedHashes(plan, result.uploaded));
+
+    output.mergeMeta((meta) => ({
+        filesProcessed: (meta.filesProcessed || 0) + plan.items.filter(item => item.type === 'file' && item.localPath).length,
+        chunks: (meta.chunks || 0) + result.chunks,
+        summary: plan.summary
+    }));
+    output.addData({
+        type: 'upload',
+        destinationPath: argv.outPath,
+        files: result.uploaded.map(entry => entry.file),
+        skipped: result.skipped,
+        results: result.uploaded
+    });
+    output.log(`Finished uploading files. Uploaded: ${result.uploaded.length}, skipped: ${result.skipped.length}`);
 }
 
 function getFilesInDirectory(dirPath) {
@@ -236,16 +325,16 @@ function getFilesInDirectory(dirPath) {
         .filter(file => fs.statSync(file).isFile());
 }
 
-async function processDirectory(env, user, dirPath, outPath, originalDir, createEmpty, isRoot = false, overwrite = false, output) {
+async function processDirectory(env, user, dirPath, outPath, originalDir, createEmpty, isRoot = false, overwrite = false, output, transfer) {
     let filesInDir = getFilesInDirectory(dirPath);
     if (filesInDir.length > 0)
-        await uploadFiles(env, user, filesInDir, isRoot ? outPath : path.join(outPath, path.basename(dirPath)), createEmpty, overwrite, output);
+        await uploadFiles(env, user, filesInDir, isRoot ? outPath : path.join(outPath, path.basename(dirPath)), createEmpty, overwrite, output, transfer);
 
     const subDirectories = fs.readdirSync(dirPath)
         .map(subDir => path.join(dirPath, subDir))
         .filter(subDir => fs.statSync(subDir).isDirectory());
     for (let subDir of subDirectories) {
-        await processDirectory(env, user, subDir, isRoot ? outPath : path.join(outPath, path.basename(dirPath)), originalDir, createEmpty, false, overwrite, output);
+        await processDirectory(env, user, subDir, isRoot ? outPath : path.join(outPath, path.basename(dirPath)), originalDir, createEmpty, false, overwrite, output, transfer);
     }
 }
 
@@ -306,10 +395,18 @@ async function download(env, user, dirPath, outPath, recursive, outname, raw, da
         agent: getAgent(env.protocol)
     });
 
+    if (!res.ok) {
+        throw createCommandError(`Failed to download "${dirPath}".`, res.status, await parseJsonSafe(res));
+    }
+
     const filename = outname || tryGetFileNameFromResponse(res, dirPath, output.verbose);
     if (!filename) return;
 
+    await fs.promises.mkdir(path.resolve(outPath), { recursive: true });
     const filePath = path.resolve(`${path.resolve(outPath)}/${filename}`)
+    if (!(await resolvesWithinRoot(await fs.promises.realpath(path.resolve(outPath)), filePath))) {
+        throw createCommandError(`Refusing to write "${filePath}": an existing link or junction leads outside "${path.resolve(outPath)}".`, 1);
+    }
     const updater = output.json ? null : createThrottledStatusUpdater();
 
     await downloadWithProgress(res, filePath, {
@@ -403,7 +500,12 @@ async function extractArchive(filename, filePath, outPath, raw, output) {
 }
 
 async function getFilesStructure(env, user, dirPath, recursive, includeFiles) {
-    let res = await fetch(`${env.protocol}://${env.host}/Admin/Api/DirectoryAll?DirectoryPath=${dirPath ?? '/'}&recursive=${recursive ?? 'false'}&includeFiles=${includeFiles ?? 'false'}`, {
+    const params = new URLSearchParams({
+        DirectoryPath: dirPath ?? '/',
+        recursive: String(recursive ?? false),
+        includeFiles: String(includeFiles ?? false)
+    });
+    let res = await fetch(`${env.protocol}://${env.host}/Admin/Api/DirectoryAll?${params}`, {
         method: 'GET',
         headers: {
             'Authorization': `Bearer ${user.apiKey}`
@@ -458,7 +560,6 @@ async function deleteRemote(env, user, remotePath, isFile, empty, output) {
 
     const body = await parseJsonSafe(res);
 
-    output.setStatus(200);
     output.addData({
         type: 'delete',
         path: remotePath,
@@ -491,7 +592,6 @@ async function copyRemote(env, user, sourcePath, destination, output) {
 
     const body = await parseJsonSafe(res);
 
-    output.setStatus(200);
     output.addData({
         type: 'copy',
         sourcePath,
@@ -525,7 +625,6 @@ async function moveRemote(env, user, sourcePath, destination, overwrite, output)
 
     const body = await parseJsonSafe(res);
 
-    output.setStatus(200);
     output.addData({
         type: 'move',
         sourcePath,
@@ -537,7 +636,11 @@ async function moveRemote(env, user, sourcePath, destination, overwrite, output)
     output.log(`Successfully moved ${sourcePath} to ${destination}`);
 }
 
-export async function uploadFiles(env, user, localFilePaths, destinationPath, createEmpty = false, overwrite = false, output = createFilesOutput({})) {
+export async function uploadFiles(env, user, localFilePaths, destinationPath, createEmpty = false, overwrite = false, output = createFilesOutput({}), transfer = null) {
+    if (transfer?.client) {
+        return transfer.client.uploadFiles(localFilePaths, destinationPath, { createEmpty, overwrite }, output);
+    }
+
     output.log('Uploading files')
 
     const chunkSize = 300;
@@ -576,10 +679,18 @@ async function uploadChunk(env, user, filePathsChunk, destinationPath, createEmp
     form.append('skipExistingFiles', String(!overwrite));
     form.append('allowOverwrite', String(overwrite));
 
-    filePathsChunk.forEach(fileToUpload => {
+    // A spec-compliant FormData with lazily read files. The `form-data` package used
+    // previously made node-fetch print a DeprecationWarning to stderr on every upload,
+    // which callers treating stderr output as failure reported as a failed upload (#50).
+    for (const fileToUpload of filePathsChunk) {
         output.log(`${fileToUpload}`)
-        form.append('files', fs.createReadStream(path.resolve(fileToUpload)));
-    });
+        const filePath = path.resolve(fileToUpload);
+        // fileFrom cannot read a 0-byte file; empty files are still sent so the server
+        // can apply createEmptyFiles.
+        form.append('files', fs.statSync(filePath).size === 0
+            ? new File([], path.basename(filePath))
+            : await fileFrom(filePath));
+    }
 
     const res = await fetch(`${env.protocol}://${env.host}/Admin/Api/Upload?` + new URLSearchParams({ "createEmptyFiles": createEmpty, "createMissingDirectories": true }), {
         method: 'POST',
@@ -596,37 +707,6 @@ async function uploadChunk(env, user, filePathsChunk, destinationPath, createEmp
     else {
         throw createCommandError('File upload failed.', res.status, await parseJsonSafe(res));
     }
-}
-
-export function resolveUploadOutput(output) {
-    const response = output?.response ?? {};
-    response.meta = response.meta ?? {};
-
-    return {
-        structured: Boolean(output),
-        response,
-        log: typeof output?.log === 'function'
-            ? output.log.bind(output)
-            : (...args) => console.log(...args),
-        addData: typeof output?.addData === 'function'
-            ? output.addData.bind(output)
-            : () => { },
-        mergeMeta: typeof output?.mergeMeta === 'function'
-            ? output.mergeMeta.bind(output)
-            : (meta) => {
-                response.meta = {
-                    ...response.meta,
-                    ...meta
-                };
-            }
-    };
-}
-
-function createUploadError(message, status, details = null) {
-    const error = new Error(message);
-    error.status = status;
-    error.details = details;
-    return error;
 }
 
 async function parseJsonSafe(res) {
@@ -661,57 +741,7 @@ export function wildcardToRegExp(wildcard) {
 }
 
 function createFilesOutput(argv) {
-    const response = {
-        ok: true,
-        command: 'files',
-        operation: getFilesOperation(argv),
-        status: 0,
-        data: [],
-        errors: [],
-        meta: {}
-    };
-
-    return {
-        json: argv.output === 'json' || Boolean(argv.json),
-        verbose: Boolean(argv.verbose),
-        response,
-        log(...args) {
-            if (!this.json) {
-                console.log(...args);
-            }
-        },
-        verboseLog(...args) {
-            if (this.verbose && !this.json) {
-                console.info(...args);
-            }
-        },
-        addData(entry) {
-            response.data.push(entry);
-        },
-        mergeMeta(metaOrFn) {
-            const meta = typeof metaOrFn === 'function' ? metaOrFn(response.meta) : metaOrFn;
-            response.meta = {
-                ...response.meta,
-                ...meta
-            };
-        },
-        setStatus(status) {
-            response.status = status;
-        },
-        fail(err) {
-            response.ok = false;
-            response.status = err?.status || 1;
-            response.errors.push({
-                message: err?.message || 'Unknown files command error.',
-                details: err?.details ?? null
-            });
-        },
-        finish() {
-            if (this.json) {
-                console.log(JSON.stringify(response, null, 2));
-            }
-        }
-    };
+    return createOutput({ command: 'files', operation: getFilesOperation(argv), argv });
 }
 
 export function getFilesOperation(argv) {

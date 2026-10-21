@@ -38,14 +38,13 @@
     "access": "public"
   },
   "engines": {
-    "node": ">=20.12.0"
+    "node": "^20.19.0 || >=22.12.0"
   },
   "dependencies": {
-    "@inquirer/prompts": "^8.4.1",
-    "form-data": "^4.0.6",
+    "@inquirer/prompts": "^8.7.4",
     "log-update": "^6.1.0",
-    "node-fetch": "^3.2.10",
-    "yargs": "^17.5.1",
+    "node-fetch": "^3.3.2",
+    "yargs": "^18.2.0",
     "yauzl": "^3.4.0"
   }
 }

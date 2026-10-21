@@ -8,14 +8,21 @@ import fs from 'fs';
  */
 export function getFileNameFromResponse(res, dirPath) {
     const header = res.headers.get('content-disposition');
-    const parts = header?.split(';');
+    const extended = header?.match(/filename\*\s*=\s*(?:[\w-]+'[^']*')?([^;]+)/i);
+    const plain = header?.match(/filename\s*=\s*("[^"]*"|[^;]+)/i);
 
-    if (!parts) {
+    if (!extended && !plain) {
         const msg = `No files found in directory '${dirPath}', if you want to download all folders recursively include the -r flag`;
         throw new Error(msg);
     }
 
-    return parts[1].split('=')[1].replaceAll('+', ' ');
+    const name = extended
+        ? decodeURIComponent(extended[1].trim())
+        : plain[1].trim().replace(/^"(.*)"$/, '$1').replaceAll('+', ' ');
+
+    // The name comes from the server and is joined onto a local path: keep only the
+    // last segment so it can never point outside the output directory.
+    return name.split(/[\\/]/).pop();
 }
 
 /**
@@ -32,7 +39,7 @@ export function tryGetFileNameFromResponse(res, dirPath, verbose = false) {
         return getFileNameFromResponse(res, dirPath);
     } catch (err) {
         if (verbose) {
-            console.log(err.message);
+            console.error(err.message);
         }
         return null;
     }
@@ -47,13 +54,20 @@ export function tryGetFileNameFromResponse(res, dirPath, verbose = false) {
  * @returns {Promise<void>} Resolves when the download is complete.
  */
 export function downloadWithProgress(res, filePath, options) {
-    const fileStream = fs.createWriteStream(filePath);
+    // append: continue a partial file, for resumed (HTTP 206) downloads.
+    const fileStream = fs.createWriteStream(filePath, { flags: options?.append ? 'a' : 'w' });
     return new Promise((resolve, reject) => {
         let receivedBytes = 0;
         let startTime = Date.now();
 
         res.body.pipe(fileStream);
         res.body.on("error", reject);
+        // Without this, a write failure (missing directory, no permission, disk full)
+        // is an unhandled 'error' event that kills the process mid-command.
+        fileStream.on("error", (err) => {
+            res.body.destroy();
+            reject(err);
+        });
         fileStream.on("finish", resolve);
 
         res.body.on("data", chunk => {
