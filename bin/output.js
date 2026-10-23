@@ -18,6 +18,17 @@ export function describeDetails(details) {
     return validation.length ? validation.join('; ') : null;
 }
 
+export const PERMISSION_DENIED = 'PERMISSION_DENIED';
+
+/**
+ * Whether the server refused this user access to a path, as opposed to rejecting the
+ * credentials: the File Transfer API's `FORBIDDEN`, or the Management API's `notAllowed`
+ * (which it sends with HTTP 401).
+ */
+export function isPermissionDenied(err) {
+    return err?.details?.code === 'FORBIDDEN' || err?.details?.status === 'notAllowed';
+}
+
 /**
  * Creates the output envelope every command reports through.
  *
@@ -75,10 +86,20 @@ export function createOutput({ command, operation, argv = {}, meta = {} }) {
             lastError = err;
             response.ok = false;
             response.status = err?.status || 1;
-            response.errors.push({
+            const entry = {
                 message: err?.message || `Unknown ${command} command error.`,
                 details: err?.details ?? null
-            });
+            };
+            // Both transfers report a refused path the same way: HTTP 403 and one code.
+            if (isPermissionDenied(err)) {
+                response.status = 403;
+                entry.code = PERMISSION_DENIED;
+                if (typeof err.details.path === 'string') entry.path = err.details.path || '/';
+                if (entry.message === describeDetails(err.details)) {
+                    entry.message = entry.path ? `Permission denied on "${entry.path}".` : 'Permission denied.';
+                }
+            }
+            response.errors.push(entry);
         },
         finish() {
             if (this.json) {
@@ -93,6 +114,9 @@ export function createOutput({ command, operation, argv = {}, meta = {} }) {
                 } else {
                     const reason = describeDetails(error.details);
                     if (reason) console.error(`  ${reason}`);
+                }
+                if (error.code === PERMISSION_DENIED) {
+                    console.error(`  The user behind the API key or OAuth client has no permission on ${error.path ? `"${error.path}"` : 'this path'}. Grant it in Dynamicweb, or use a path it can access.`);
                 }
             }
             if (this.verbose && lastError?.stack && !lastError.details) {

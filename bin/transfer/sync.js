@@ -180,19 +180,36 @@ export async function applyPush(client, plan, { targetRoot = plan.remotePath, de
 
         if (deleteRemoteOnly) {
             const removals = plan.items.filter(item => item.action === 'remote-only');
-            // A deleted directory takes its contents with it.
-            const directories = removals.filter(item => item.type === 'directory').map(item => `${item.path.toLowerCase()}/`);
-            const topLevel = removals.filter(item => !directories.some(dir => item.path.toLowerCase().startsWith(dir)));
-            for (const item of topLevel) {
-                const target = joinRemote(targetRoot, item.path);
-                const ifMatch = guard && item.type === 'file' && targetRoot === plan.remotePath ? item.remoteETag : undefined;
+            const guarded = guard && targetRoot === plan.remotePath;
+            const remove = async (item, options) => {
                 try {
-                    await client.deleteEntry(target, { ifMatch });
+                    await client.deleteEntry(joinRemote(targetRoot, item.path), options);
                 } catch (err) {
-                    throw pushError(err, item, 'delete');
+                    throw await guardedDeleteError(client, err, item, joinRemote(targetRoot, item.path));
                 }
                 deleted.push({ path: item.path, type: item.type });
                 output.log(`- ${item.path}`);
+            };
+
+            if (guarded) {
+                // Every file goes on its own with If-Match, then the directories, deepest
+                // first and non-recursively: a file changed or added after planning is
+                // never deleted by way of its directory.
+                for (const item of removals.filter(item => item.type === 'file')) {
+                    await remove(item, { ifMatch: item.remoteETag });
+                }
+                const directories = removals.filter(item => item.type === 'directory')
+                    .sort((a, b) => b.path.split('/').length - a.path.split('/').length);
+                for (const item of directories) {
+                    await remove(item, { recursive: false });
+                }
+            } else {
+                // A deleted directory takes its contents with it.
+                const directories = removals.filter(item => item.type === 'directory').map(item => `${item.path.toLowerCase()}/`);
+                const topLevel = removals.filter(item => !directories.some(dir => item.path.toLowerCase().startsWith(dir)));
+                for (const item of topLevel) {
+                    await remove(item);
+                }
             }
         }
     } finally {
@@ -211,10 +228,28 @@ function pushError(err, item, operation) {
 }
 
 /**
+ * A directory that a non-recursive delete refuses still holds something the plan did
+ * not know about: a remote change. Any other failure is reported as it is.
+ */
+async function guardedDeleteError(client, err, item, target) {
+    if (item.type === 'directory') {
+        const contents = await client.manifestMap(target).catch(() => null);
+        const added = [...(contents?.files.values() ?? []), ...(contents?.directories.values() ?? [])].map(entry => joinRemote(item.path, entry.path));
+        if (added.length > 0) {
+            return createCommandError(`"${item.path}" holds entries added on the server since planning (${added.slice(0, 10).join(', ')}${added.length > 10 ? ', ...' : ''}); it was not deleted.`, 409,
+                { code: 'REMOTE_CHANGED', path: item.path, added, cause: err.details ?? err.message });
+        }
+    }
+    return pushError(err, item, 'delete');
+}
+
+/**
  * Updates the baseline of a remote root after a push and marks the root as synced.
  *
  * Only files whose remote content the CLI has verified -- `verified` maps their
- * lower-cased relative path to the SHA-256 -- become the new baseline. Every other
+ * lower-cased relative path to the SHA-256 and the eTag of the version it was verified
+ * for -- become the new baseline, and only while that is still the version on the
+ * server: a file edited after it was verified keeps its old baseline. Every other
  * remote file keeps the baseline it had: one changed on the server and left alone (no
  * --overwrite, no --delete) must still count as a remote change next time. Baselines of
  * files that no longer exist are dropped. With `acceptAll`, every remote file is
@@ -227,8 +262,9 @@ export async function recordRemoteRoot(client, plan, verified = new Map(), { acc
         if (!present.has(recorded)) client.state.forget(recorded);
     }
     for (const [key, entry] of tree?.files ?? []) {
-        if (acceptAll || verified.has(key)) {
-            client.state.recordFile(joinRemote(plan.remotePath, entry.path), { eTag: entry.eTag, size: entry.size, sha256: verified.get(key) });
+        const known = verified.get(key);
+        if (acceptAll || (known && known.eTag === entry.eTag)) {
+            client.state.recordFile(joinRemote(plan.remotePath, entry.path), { eTag: entry.eTag, size: entry.size, sha256: known?.sha256 });
         }
     }
     client.state.markRootSynced(plan.remotePath);
@@ -238,14 +274,14 @@ export async function recordRemoteRoot(client, plan, verified = new Map(), { acc
 /**
  * Files whose remote content is known to equal the local file after a push: the ones
  * uploaded, and the ones the plan found unchanged by hash. Maps the lower-cased relative
- * path to the SHA-256.
+ * path to the SHA-256 and the eTag of the version that hash belongs to.
  */
 export function verifiedHashes(plan, uploaded = []) {
     const hashes = new Map();
     for (const item of plan.items) {
-        if (item.type === 'file' && item.action === 'unchanged') hashes.set(item.path.toLowerCase(), item.sha256);
+        if (item.type === 'file' && item.action === 'unchanged') hashes.set(item.path.toLowerCase(), { sha256: item.sha256, eTag: item.remoteETag });
     }
-    for (const item of uploaded) hashes.set(item.path.toLowerCase(), item.sha256);
+    for (const item of uploaded) hashes.set(item.path.toLowerCase(), { sha256: item.sha256, eTag: item.eTag });
     return hashes;
 }
 

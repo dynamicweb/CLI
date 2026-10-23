@@ -37,6 +37,8 @@ test('classifyProbeResponse: supported, unsupported, and auth failures are never
     assert.equal(classifyProbeResponse(404, null), false);
     assert.throws(() => classifyProbeResponse(401, null), (err) => err.status === 401 && /Authentication failed/.test(err.message));
     assert.throws(() => classifyProbeResponse(403, null), (err) => err.status === 403);
+    // A user without read permission on the files root still has the API.
+    assert.equal(classifyProbeResponse(403, { code: 'FORBIDDEN', message: 'Read permission is required on the path.', path: '' }), true);
     assert.throws(() => classifyProbeResponse(200, '<html>'), /Unexpected response/);
     assert.throws(() => classifyProbeResponse(500, null), /HTTP 500/);
 });

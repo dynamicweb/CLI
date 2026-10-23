@@ -12,7 +12,7 @@ const home = fs.mkdtempSync(path.join(os.tmpdir(), 'dw-home-'));
 process.env.HOME = process.env.USERPROFILE = home;
 process.on('exit', () => fs.rmSync(home, { recursive: true, force: true }));
 
-const { createFileTransferClient } = await import('../bin/transfer/filetransfer.js');
+const { createFileTransferClient, mapPool } = await import('../bin/transfer/filetransfer.js');
 const { applyPush, blockingConflicts, buildPlan, deploy, recordRemoteRoot, rollback, verifiedHashes } = await import('../bin/transfer/sync.js');
 const { createOutput } = await import('../bin/output.js');
 const { getConfig, setupConfig } = await import('../bin/commands/config.js');
@@ -382,6 +382,69 @@ test('a remote-only file left in place by sync still blocks a later --delete', a
     const plan = await buildPlan(client, { localRoot: local, remoteRoot: 'K' });
 
     assert.deepEqual(blockingConflicts(plan, { deleteRemoteOnly: true }).map(i => `${i.path}:${i.conflict}`), ['hotfix.txt:added-remotely']);
+});
+
+test('a same-size remote edit between the push and recording the baseline stays a conflict', async (t) => {
+    const { client, edit } = await setup(t, { files: { 'B/a.txt': 'aaaa', 'B/b.txt': 'bbbb' } });
+    const local = localTree(t, { 'a.txt': 'AAAA', 'b.txt': 'bbbb' });
+    await syncOnce(client, local, 'B');
+
+    fs.writeFileSync(path.join(local, 'a.txt'), 'XXXX');
+    const plan = await buildPlan(client, { localRoot: local, remoteRoot: 'B' });
+    const result = await applyPush(client, plan, {}, quietOutput());
+    edit('B/a.txt', 'zzzz');                         // after the upload: same size
+    edit('B/b.txt', 'yyyy');                         // after planning found it unchanged
+    await recordRemoteRoot(client, plan, verifiedHashes(plan, result.uploaded));
+
+    const after = await buildPlan(client, { localRoot: local, remoteRoot: 'B' });
+    assert.deepEqual(blockingConflicts(after).map(i => `${i.path}:${i.conflict}`), ['a.txt:modified-remotely', 'b.txt:modified-remotely']);
+});
+
+test('a guarded delete never takes a file changed after planning along with its directory', async (t) => {
+    const { client, store, edit } = await setup(t, { files: { 'Q/keep.txt': 'k', 'Q/old/a.txt': 'a', 'Q/old/sub/b.txt': 'b' }, directories: ['Q/old', 'Q/old/sub'] });
+    const local = localTree(t, { 'keep.txt': 'k' });
+    const plan = await buildPlan(client, { localRoot: local, remoteRoot: 'Q' });
+    edit('Q/old/sub/b.txt', 'edited');
+
+    await assert.rejects(applyPush(client, plan, { deleteRemoteOnly: true, guard: true }, quietOutput()),
+        (err) => err.status === 409 && err.details.code === 'REMOTE_CHANGED' && err.details.path === 'old/sub/b.txt');
+    assert.equal(store.get('Q/old/sub/b.txt').toString(), 'edited');
+});
+
+test('a guarded delete never takes a file added after planning along with its directory', async (t) => {
+    const { client, store, edit } = await setup(t, { files: { 'Q/keep.txt': 'k', 'Q/old/a.txt': 'a' }, directories: ['Q/old'] });
+    const local = localTree(t, { 'keep.txt': 'k' });
+    const plan = await buildPlan(client, { localRoot: local, remoteRoot: 'Q' });
+    edit('Q/old/added.txt', 'new on the server');
+
+    await assert.rejects(applyPush(client, plan, { deleteRemoteOnly: true, guard: true }, quietOutput()),
+        (err) => err.status === 409 && err.details.code === 'REMOTE_CHANGED' && err.details.added.includes('old/added.txt'));
+    assert.equal(store.get('Q/old/added.txt').toString(), 'new on the server');
+    assert.equal(store.has('Q/old/a.txt'), false, 'the planned file was deleted');
+});
+
+test('a guarded delete removes planned files and directories when nothing changed', async (t) => {
+    const { client, store, explicitDirs } = await setup(t, { files: { 'Q/keep.txt': 'k', 'Q/old/a.txt': 'a', 'Q/old/sub/b.txt': 'b' }, directories: ['Q/old', 'Q/old/sub'] });
+    const plan = await buildPlan(client, { localRoot: localTree(t, { 'keep.txt': 'k' }), remoteRoot: 'Q' });
+
+    const result = await applyPush(client, plan, { deleteRemoteOnly: true, guard: true }, quietOutput());
+
+    assert.deepEqual([...store.keys()], ['Q/keep.txt']);
+    assert.equal([...explicitDirs].some(d => d.startsWith('Q/old')), false);
+    assert.deepEqual(result.deleted.map(d => d.path), ['old/a.txt', 'old/sub/b.txt', 'old/sub', 'old']);
+});
+
+test('mapPool starts nothing new after a failure and rejects only once running work has finished', async () => {
+    const events = [];
+    await assert.rejects(mapPool([1, 2, 3, 4, 5], 2, async (n) => {
+        events.push(`start ${n}`);
+        if (n === 1) throw new Error('boom');
+        await new Promise(resolve => setTimeout(resolve, 20));
+        events.push(`end ${n}`);
+    }), /boom/);
+    events.push('rejected');
+
+    assert.deepEqual(events, ['start 1', 'start 2', 'end 2', 'rejected']);
 });
 
 function linkDir(target, at) {

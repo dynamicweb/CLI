@@ -133,6 +133,8 @@ export async function startFakeFileTransfer(t, { files = {}, directories = [], f
                     if (ifMatchFails(req.headers['if-match'], p)) return fail(412, 'PRECONDITION_FAILED', 'The entity tag does not match the current version of the file.', { path: p });
                     store.delete(p);
                 } else {
+                    const contents = [...store.keys(), ...allDirs()].some(x => x !== p && under(p, x));
+                    if (json.recursive === false && contents) return fail(409, 'CONFLICT', 'The directory is not empty; set recursive to delete it.', { path: p });
                     for (const f of [...store.keys()]) if (under(p, f)) store.delete(f);
                     for (const d of [...explicitDirs]) if (under(p, d)) explicitDirs.delete(d);
                 }

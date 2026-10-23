@@ -175,11 +175,11 @@ export function createFileTransferClient(env, user) {
     }
 
     /** Deletes a file or directory tree; a missing path is reported as `false`. */
-    async function deleteEntry(remotePath, { ifMatch } = {}) {
+    async function deleteEntry(remotePath, { ifMatch, recursive = true } = {}) {
         const target = toRemotePath(remotePath);
         try {
             await request('POST', 'entries/delete', {
-                json: { path: target, recursive: true },
+                json: { path: target, recursive },
                 headers: ifMatch ? { 'If-Match': ifMatch } : {},
                 idempotent: true
             });
@@ -682,15 +682,26 @@ export async function hashFile(filePath) {
     return hash.digest('hex');
 }
 
+/**
+ * Runs `fn` over `items`, at most `limit` at a time. After a failure no new item is
+ * started, and the first error is only thrown once the running ones have finished, so a
+ * caller's cleanup never overlaps work still in flight.
+ */
 export async function mapPool(items, limit, fn) {
     let next = 0;
+    let failure = null;
     const workers = Array.from({ length: Math.min(limit, items.length) }, async () => {
-        while (next < items.length) {
+        while (!failure && next < items.length) {
             const item = items[next++];
-            await fn(item);
+            try {
+                await fn(item);
+            } catch (err) {
+                failure ??= { err };
+            }
         }
     });
     await Promise.all(workers);
+    if (failure) throw failure.err;
 }
 
 function createDirectoryNode(remotePath) {

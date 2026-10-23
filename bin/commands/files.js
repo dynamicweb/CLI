@@ -499,7 +499,7 @@ async function extractArchive(filename, filePath, outPath, raw, output) {
     });
 }
 
-async function getFilesStructure(env, user, dirPath, recursive, includeFiles) {
+export async function getFilesStructure(env, user, dirPath, recursive, includeFiles) {
     const params = new URLSearchParams({
         DirectoryPath: dirPath ?? '/',
         recursive: String(recursive ?? false),
@@ -512,11 +512,22 @@ async function getFilesStructure(env, user, dirPath, recursive, includeFiles) {
         },
         agent: getAgent(env.protocol)
     });
-    if (res.ok) {
-        return await res.json();
-    } else {
+    if (!res.ok) {
         throw createCommandError('Unable to fetch file structure.', res.status, await parseJsonSafe(res));
     }
+    const body = await res.json();
+    // A directory that does not exist, or that this user may not read, comes back as an
+    // empty placeholder without a model identifier (a real one has "/Files/..."), not as
+    // an error. The server does not say which, so neither can we.
+    if (!body?.model?.modelIdentifier) {
+        const displayPath = dirPath ?? '/';
+        throw createCommandError('Unable to fetch file structure.', 404, {
+            code: 'NOT_FOUND',
+            message: `"${displayPath}" does not exist, or this user has no permission to read it.`,
+            path: displayPath
+        });
+    }
+    return body;
 }
 
 async function deleteRemote(env, user, remotePath, isFile, empty, output) {

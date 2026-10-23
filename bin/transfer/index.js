@@ -110,6 +110,12 @@ export function classifyProbeResponse(status, body) {
     if (status === 404 || status === 405) {
         return false;
     }
+    // The probe reads the files root, which a user limited to some folders may not read.
+    // The API's own FORBIDDEN error still proves it exists and accepted the token; the
+    // operation itself then enforces the permissions on the paths it touches.
+    if (status === 403 && body?.code === 'FORBIDDEN') {
+        return true;
+    }
     if (status === 401 || status === 403) {
         throw createCommandError(`Authentication failed: the solution rejected the API key or token (HTTP ${status}).`, status, body);
     }
