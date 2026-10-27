@@ -29,22 +29,43 @@ export function parseHostInput(hostValue) {
     }
     hostValue = hostValue.trim();
     const hostSplit = hostValue.split('://');
-
-    if (hostSplit.length === 1) {
-        return {
-            protocol: 'https',
-            host: hostSplit[0]
-        };
+    if (hostSplit.length > 2) {
+        throw createCommandError(`Issues resolving host ${hostValue}`);
     }
 
-    if (hostSplit.length === 2) {
-        return {
-            protocol: hostSplit[0],
-            host: hostSplit[1]
-        };
+    // Parse it as a URL so a trailing slash, letter case or a default port can't produce
+    // a different host, which would break the request URLs and split the transfer state.
+    let parsed;
+    try {
+        parsed = new URL(hostSplit.length === 1 ? `https://${hostValue}` : hostValue);
+    } catch {
+        throw createCommandError(`Issues resolving host ${hostValue}`);
     }
 
-    throw createCommandError(`Issues resolving host ${hostValue}`);
+    const protocol = parsed.protocol.replace(/:$/, '');
+    if (protocol !== 'http' && protocol !== 'https') {
+        throw createCommandError(`Unsupported protocol "${protocol}" in host ${hostValue}, use http or https`);
+    }
+    if (parsed.username || parsed.password || parsed.search || parsed.hash || parsed.pathname.replace(/\/+$/, '')) {
+        throw createCommandError(`The host ${hostValue} must not include a path, query string or credentials`);
+    }
+
+    return {
+        protocol,
+        host: parsed.host
+    };
+}
+
+/**
+ * Normalizes a host value, letting an explicit protocol (e.g. --protocol) win over one
+ * written in the host itself.
+ */
+export function resolveHost(hostValue, protocol) {
+    const resolved = parseHostInput(hostValue);
+    return {
+        host: resolved.host,
+        protocol: protocol || resolved.protocol
+    };
 }
 
 export function envCommand() {
@@ -94,12 +115,7 @@ export async function setupEnv(argv, output = null, deps = {}) {
 
     if (argv.host) {
         askEnv = false;
-        env.host = argv.host;
-        if (argv.protocol) {
-            env.protocol = argv.protocol;
-        } else {
-            env.protocol = 'https';
-        }
+        env = resolveHost(argv.host, argv.protocol);
     }
 
     if (askEnv && cfg.env) {
@@ -129,6 +145,11 @@ export async function setupEnv(argv, output = null, deps = {}) {
 
     if (!env || Object.keys(env).length === 0) {
         throw createCommandError('Unable to resolve the current environment.');
+    }
+
+    // Hosts saved before they were normalized may still carry a protocol or a trailing slash.
+    if (env.host) {
+        Object.assign(env, resolveHost(env.host, env.protocol));
     }
 
     return env;
@@ -225,10 +246,8 @@ async function changeEnv(argv, output) {
     config.env = config.env || {};
 
     if (argv.host) {
-        const resolvedHost = parseHostInput(argv.host);
         const env = config.env[argv.env] = config.env[argv.env] || {};
-        env.host = resolvedHost.host;
-        env.protocol = argv.protocol || resolvedHost.protocol;
+        Object.assign(env, resolveHost(argv.host, argv.protocol));
     } else if (!Object.hasOwn(config.env, argv.env)) {
         if (isJsonOutput(argv)) {
             throw createCommandError(`The specified environment ${argv.env} doesn't exist, please create it with "dw env ${argv.env} --host <host>"`, 404);

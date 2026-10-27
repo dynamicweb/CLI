@@ -29,6 +29,44 @@ test('parseHostInput rejects malformed host values with multiple protocol separa
     );
 });
 
+test('parseHostInput strips trailing slashes and normalizes the host', () => {
+    for (const value of ['https://Example.com/', 'https://example.com//', 'example.com/', 'https://example.com:443/']) {
+        assert.deepEqual(parseHostInput(value), { protocol: 'https', host: 'example.com' }, value);
+    }
+    assert.deepEqual(parseHostInput('http://localhost:6001/'), { protocol: 'http', host: 'localhost:6001' });
+});
+
+test('parseHostInput rejects a path, query string, credentials or another protocol', () => {
+    assert.throws(() => parseHostInput('https://example.com/admin'), /must not include a path/);
+    assert.throws(() => parseHostInput('https://example.com/?a=1'), /must not include a path/);
+    assert.throws(() => parseHostInput('https://user:pw@example.com'), /must not include a path/);
+    assert.throws(() => parseHostInput('ftp://example.com'), /Unsupported protocol/);
+    assert.throws(() => parseHostInput('https://exa mple.com'), /Issues resolving host/);
+});
+
+test('setupEnv normalizes a host override that includes protocol and trailing slash', async () => {
+    assert.deepEqual(await setupEnv({ host: 'http://override.example.com/' }), {
+        host: 'override.example.com',
+        protocol: 'http'
+    });
+    assert.deepEqual(await setupEnv({ host: 'http://override.example.com/', protocol: 'https' }), {
+        host: 'override.example.com',
+        protocol: 'https'
+    });
+});
+
+test('setupEnv normalizes a host saved with a trailing slash', async () => {
+    setConfigForTests({
+        env: { dev: { host: 'dev.example.com/', protocol: 'https' } },
+        current: { env: 'dev' }
+    });
+
+    assert.deepEqual(await setupEnv({}), {
+        host: 'dev.example.com',
+        protocol: 'https'
+    });
+});
+
 test('setupEnv prefers direct host arguments and defaults protocol to https', async () => {
     setConfigForTests({
         env: {

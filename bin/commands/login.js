@@ -1,5 +1,5 @@
 import fetch from 'node-fetch';
-import { interactiveEnv, getAgent, isJsonOutput, createCommandError } from './env.js'
+import { interactiveEnv, getAgent, isJsonOutput, createCommandError, resolveHost } from './env.js'
 import { updateConfig, getConfig } from './config.js';
 import { input, password } from '@inquirer/prompts';
 import { createOutput } from '../output.js';
@@ -360,7 +360,7 @@ async function nonInteractiveOAuthLogin(argv) {
     let environment = getConfig()?.current?.env;
 
     if (!environment && argv.host) {
-        environment = new URL(`https://${argv.host.replace(/^https?:\/\//, '')}`).hostname.split('.')[0] || 'default';
+        environment = new URL(`https://${resolveHost(argv.host).host}`).hostname.split('.')[0] || 'default';
     }
 
     if (!environment) {
@@ -506,10 +506,7 @@ async function fetchOAuthToken(env, oauthConfig, verbose) {
 
 function getCurrentEnv(argv) {
     if (argv.host) {
-        return {
-            host: argv.host,
-            protocol: argv.protocol || 'https'
-        };
+        return resolveHost(argv.host, argv.protocol);
     }
 
     return getConfig()?.env?.[getConfig()?.current?.env] || {};
@@ -518,8 +515,7 @@ function getCurrentEnv(argv) {
 function ensureEnvironmentFromArgs(environment, argv) {
     getConfig().env = getConfig().env || {};
     getConfig().env[environment] = getConfig().env[environment] || {};
-    getConfig().env[environment].host = argv.host;
-    getConfig().env[environment].protocol = argv.protocol || 'https';
+    Object.assign(getConfig().env[environment], resolveHost(argv.host, argv.protocol));
     getConfig().current = getConfig().current || {};
     getConfig().current.env = environment;
     updateConfig();
