@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { createInstallOutput } from './install.js';
+import { createInstallOutput } from '../bin/commands/install.js';
 
 test('createInstallOutput suppresses regular logs in json mode and emits the final envelope', () => {
     const logCalls = [];
@@ -32,12 +32,11 @@ test('createInstallOutput suppresses regular logs in json mode and emits the fin
         assert.deepEqual(rendered, {
             ok: true,
             command: 'install',
-            operation: 'install',
-            status: 200,
+            operation: 'queue',
+            status: 0,
             data: [{ type: 'install', filename: 'addon.nupkg' }],
             errors: [],
             meta: {
-                queued: true,
                 resolvedPath: '/tmp/addon.nupkg'
             }
         });

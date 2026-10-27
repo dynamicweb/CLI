@@ -1,0 +1,15 @@
+{
+  "environmentName": "qa-smoke",
+  "baseUrl": "https://your-solution.example.com",
+  "clientIdEnv": "DW_CLIENT_ID",
+  "clientSecretEnv": "DW_CLIENT_SECRET",
+  "remoteRoot": "QA/CLI",
+  "commandTimeoutMs": 120000,
+  "queries": [],
+  "commands": [],
+  "install": {
+    "enabled": false,
+    "filePath": "qa/fixtures/addins/YourAddin.nupkg",
+    "queue": true
+  }
+}

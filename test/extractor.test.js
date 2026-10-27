@@ -168,3 +168,64 @@ test('rejects a file that is not a zip archive', async (t) => {
     fs.writeFileSync(bad, 'not a zip');
     await assert.rejects(extractWithProgress(bad, dest));
 });
+
+// Directory links: junctions need no privileges on Windows; the type is ignored elsewhere.
+function linkDir(target, at) {
+    fs.symlinkSync(target, at, 'junction');
+}
+
+test('rejects writes through an existing link in the destination that points outside', async (t) => {
+    const { tmp, dest, run } = await extract(t, [{ name: 'link/probe.txt', data: 'x' }]);
+    const sibling = path.join(tmp, 'sibling');
+    fs.mkdirSync(sibling);
+    linkDir(sibling, path.join(dest, 'link'));
+
+    await assert.rejects(run, /Out of bound path "link\/probe.txt"/);
+    assert.deepEqual(fs.readdirSync(sibling), []);
+});
+
+test('rejects writes through an existing dangling link in the destination', async (t) => {
+    const { tmp, dest, run } = await extract(t, [{ name: 'dangling/probe.txt', data: 'x' }]);
+    const missing = path.join(tmp, 'not-yet');
+    linkDir(missing, path.join(dest, 'dangling'));
+
+    await assert.rejects(run, /Out of bound path/);
+    assert.equal(fs.existsSync(missing), false);
+});
+
+test('rejects overwriting an existing file link that points outside', async (t) => {
+    const { tmp, dest, run } = await extract(t, [{ name: 'file.txt', data: 'pwned' }]);
+    const outside = path.join(tmp, 'outside.txt');
+    fs.writeFileSync(outside, 'original');
+    try {
+        fs.symlinkSync(outside, path.join(dest, 'file.txt'), 'file');
+    } catch (e) {
+        if (e.code === 'EPERM') return t.skip('symlinks not permitted on this system');
+        throw e;
+    }
+
+    await assert.rejects(run, /Out of bound path/);
+    assert.equal(fs.readFileSync(outside, 'utf8'), 'original');
+});
+
+test('allows writes through an existing link that stays inside the destination', async (t) => {
+    const { dest, run } = await extract(t, [{ name: 'alias/probe.txt', data: 'x' }]);
+    fs.mkdirSync(path.join(dest, 'inner'));
+    linkDir(path.join(dest, 'inner'), path.join(dest, 'alias'));
+
+    await run();
+    assert.equal(fs.readFileSync(path.join(dest, 'inner/probe.txt'), 'utf8'), 'x');
+});
+
+test('allows a destination that is itself a link', async (t) => {
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'dw-extract-'));
+    t.after(() => fs.rmSync(tmp, { recursive: true, force: true }));
+    const real = path.join(tmp, 'real');
+    fs.mkdirSync(real);
+    linkDir(real, path.join(tmp, 'dest'));
+    const zip = path.join(tmp, 'archive.zip');
+    fs.writeFileSync(zip, buildZip([{ name: 'a/b.txt', data: 'ok' }]));
+
+    await extractWithProgress(zip, path.join(tmp, 'dest'));
+    assert.equal(fs.readFileSync(path.join(real, 'a/b.txt'), 'utf8'), 'ok');
+});

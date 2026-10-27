@@ -2,106 +2,78 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-## Project Overview
-
-`@dynamicweb/cli` is a Node.js CLI (`dw`) for managing DynamicWeb 10 CMS solutions. It handles authentication, file archive operations, Admin API queries/commands, add-in installation, database exports, and Swift release downloads. The binary is registered as `dw`.
-
 ## Development Setup
 
-```bash
-npm install
-npm install -g .   # Makes 'dw' available globally from source
-dw --help
-```
+Pure ESM JavaScript (`"type": "module"`), no build step. Node.js `^20.19.0 || >=22.12.0` required.
 
-No build step — pure ESM JavaScript (`"type": "module"`), Node.js >=20.12.0 required.
+`npm install -g .` makes `dw` available globally from source.
 
-No test framework or linting is configured yet.
+Tests run with `npm test` (`node --test`). There is also a QA smoke harness: `npm run qa:smoke`.
 
-## Code Architecture
+No linter is configured.
 
-### Entry Point
+## Conventions
 
-[bin/index.js](bin/index.js) bootstraps yargs with global options and registers all commands. `setupConfig()` runs at startup to initialize `~/.dwc`.
+### File transfer
 
-### Command Structure
+`files`, `folders` and `install` call `resolveTransfer()` ([bin/transfer/index.js](bin/transfer/index.js))
+and branch per operation: `transfer.client` is the File Transfer API client
+([bin/transfer/filetransfer.js](bin/transfer/filetransfer.js)), or `null` for the legacy code that stays in
+the command files. Both must keep the same semantics and JSON output shapes — scripts must not be able
+to tell them apart except via `meta.transfer`. Notably `--copy`/`--move <dest>` mean "into `dest`".
+Verify behaviour changes against both: `DW_TRANSFER=legacy` and `DW_TRANSFER=filetransfer`.
 
-All commands live in [bin/commands/](bin/commands/). Each exports a `*Command()` function returning a yargs command object with `command`, `describe`, `builder`, and `handler` properties.
+The File-Transfer-only features (`dw files diff/sync/deploy/rollback/stat/usage` in
+[bin/commands/files-subcommands.js](bin/commands/files-subcommands.js), `--changed-only`,
+`--fail-on-remote-change`, `--verify`) are built on the plan in [bin/transfer/sync.js](bin/transfer/sync.js)
+and the transfer state in [bin/transfer/state.js](bin/transfer/state.js), which lives in `~/.dwc` under
+`transferState`. Tests that touch the state must point `HOME`/`USERPROFILE` at a temp folder before
+importing CLI modules (see [test/sync.test.js](test/sync.test.js)); [test/helpers/fake-filetransfer.js](test/helpers/fake-filetransfer.js)
+is an in-memory File Transfer API for tests.
 
-Every command handler follows the same pattern:
+### Output envelope
 
-```js
-handler: async (argv) => {
-    const output = createXxxOutput(argv);   // local output envelope
-    try {
-        let env = await setupEnv(argv, output);   // from env.js
-        let user = await setupUser(argv, env);    // from login.js
-        // ... API calls with node-fetch
-    } catch (err) {
-        output.fail(err);
-        process.exitCode = 1;
-    } finally {
-        output.finish();   // prints JSON if --output json
-    }
-}
-```
+Every command handler builds its output object with `createOutput()` from [bin/output.js](bin/output.js)
+and follows the same try/catch/finally shape: `output.fail(err)` and `process.exitCode = 1` on error,
+`output.finish()` in `finally`. `finish()` prints the JSON envelope in JSON mode and the errors to
+stderr otherwise, so throw `createCommandError()` rather than logging and returning, and never call
+`process.exit()`. A successful run must write nothing to stderr — some callers treat stderr as failure.
 
-### Key Shared Modules
+Tests live in `test/`, not `bin/` (everything under `bin/` is published to npm).
 
-- **[bin/commands/env.js](bin/commands/env.js)** — `setupEnv()`, `getAgent()` (keep-alive HTTP/HTTPS agents), `createCommandError()`, `isJsonOutput()`, `interactiveEnv()`
-- **[bin/commands/login.js](bin/commands/login.js)** — `setupUser()`, OAuth token fetch, interactive login, API key creation
-- **[bin/commands/config.js](bin/commands/config.js)** — `getConfig()`, `updateConfig()`, `setupConfig()` — manages `~/.dwc` JSON file
-- **[bin/utils.js](bin/utils.js)** — `createThrottledStatusUpdater()` (500ms throttle), `formatBytes()`, `formatElapsed()`
-- **[bin/downloader.js](bin/downloader.js)** — streams HTTP responses with a progress callback
-- **[bin/extractor.js](bin/extractor.js)** — ZIP extraction with progress callback
+All user-facing logging must go through `output.log()` rather than `console.log()` directly, so it is
+suppressed when `--output json` is set. This is the easiest thing to get wrong — a stray `console.log`
+corrupts the JSON envelope on stdout.
 
-### Output Envelope
+`--output json` is registered per command, not as a global flag. When it is set, interactive prompts
+are skipped.
 
-Each command creates a local output object (see `createEnvOutput` in [bin/commands/env.js:256](bin/commands/env.js#L256) as the canonical example):
+### Global CLI flags
 
-```js
-{ ok, command, operation, status, data: [], errors: [], meta: {} }
-```
+All commands inherit: `--verbose/-v`, `--host`, `--protocol`, `--apiKey`, `--oauth`,
+`--auth user|oauth`, `--clientId`, `--clientSecret`, `--clientIdEnv`, `--clientSecretEnv`,
+`--transfer auto|filetransfer|legacy` (same as `DW_TRANSFER`; default `auto`).
 
-- `output.addData(entry)` — push to `data[]`
-- `output.log(...args)` — console.log only when not in JSON mode
-- `output.fail(err)` — sets `ok: false`, pushes to `errors[]`
-- `output.finish()` — prints `JSON.stringify(response)` if `--output json`
+## Gotchas
+
+### Config file
+
+Persistent config lives in `~/.dwc` (JSON), managed via `getConfig()` / `updateConfig()` /
+`setupConfig()` in [bin/commands/config.js](bin/commands/config.js). `setupConfig()` runs at startup.
 
 ### Authentication
 
-`shouldUseOAuth()` in [bin/commands/login.js](bin/commands/login.js) decides auth mode from flags, env config, or CLI args. Both paths converge to `user.apiKey` for API calls.
+`shouldUseOAuth()` in [bin/commands/login.js](bin/commands/login.js) decides auth mode from flags, env
+config, or CLI args. Both paths converge to `user.apiKey`.
 
-- **User auth**: interactive login → creates a DW API key stored in `~/.dwc`
-- **OAuth**: fetches access token from `/Admin/OAuth/token`; token not cached between commands
+OAuth access tokens are **not cached between commands** — every invocation fetches a fresh token from
+`/Admin/OAuth/token`.
 
-### Config File (`~/.dwc`)
+### HTTPS agent
 
-```json
-{
-  "env": {
-    "<name>": {
-      "host": "localhost:6001",
-      "protocol": "https",
-      "users": { "<username>": { "apiKey": "prefix.key" } },
-      "auth": { "type": "oauth_client_credentials", "clientIdEnv": "...", "clientSecretEnv": "..." },
-      "current": { "user": "...", "authType": "user|oauth_client_credentials" }
-    }
-  },
-  "current": { "env": "<name>" }
-}
-```
+The HTTPS agent in [bin/commands/env.js](bin/commands/env.js) sets `rejectUnauthorized: false`
+intentionally, to support self-signed certificates in dev environments. Don't "fix" this.
 
-### Global CLI Flags
+### Git Bash on Windows
 
-All commands inherit: `--verbose/-v`, `--host`, `--protocol`, `--apiKey`, `--auth user|oauth`, `--clientId`, `--clientSecret`, `--clientIdEnv`, `--clientSecretEnv`, `--output json`.
-
-When `--output json` is set, interactive prompts are skipped and the structured envelope is printed to stdout. All other logging must go through `output.log()` (not `console.log()` directly) so it is suppressed in JSON mode.
-
-### HTTPS Agent
-
-The HTTPS agent in [bin/commands/env.js:13](bin/commands/env.js#L13) sets `rejectUnauthorized: false` intentionally to support self-signed certificates in dev environments.
-
-### Git Bash Warning
-
-On Windows Git Bash (`MSYSTEM` env var set), the CLI warns about path conversion unless `MSYS_NO_PATHCONV=1`.
+When `MSYSTEM` is set, the CLI warns about path conversion unless `MSYS_NO_PATHCONV=1`.

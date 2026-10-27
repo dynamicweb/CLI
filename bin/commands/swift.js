@@ -1,12 +1,12 @@
 import { execFile } from 'child_process';
-import { Agent } from 'https';
 import fs from 'fs';
 import path from 'path';
+import { promisify } from 'util';
 import fetch from 'node-fetch';
+import { createCommandError } from './env.js';
+import { createOutput } from '../output.js';
 
-const agent = new Agent({
-    rejectUnauthorized: false
-})
+const execFileAsync = promisify(execFile);
 
 export function swiftCommand() {
     return {
@@ -30,38 +30,57 @@ export function swiftCommand() {
                 alias: 'n',
                 describe: 'Will pull #HEAD, as default is latest release'
             })
-            .option('force', {})
+            .option('force', {
+                type: 'boolean',
+                describe: 'Overwrites the contents of [outPath] if it is not empty'
+            })
+            .option('output', {
+                choices: ['json'],
+                describe: 'Outputs a single JSON response for automation-friendly parsing'
+            })
         },
         handler: async (argv) => {
-            if (argv.verbose) console.info(`Downloading latest swift to :${argv.outPath}`)
-            await handleSwift(argv)
+            const output = createOutput({ command: 'swift', operation: argv.list ? 'list' : 'download', argv });
+
+            try {
+                await handleSwift(argv, output);
+            } catch (err) {
+                output.fail(err);
+                process.exitCode = 1;
+            } finally {
+                output.finish();
+            }
         }
     }
 }
 
-async function handleSwift(argv) {
+async function handleSwift(argv, output) {
     if (argv.list) {
-        console.log(await getVersions(false))
+        const versions = await getVersions(false);
+        output.addData({ versions });
+        output.log(versions);
     } else {
-        const repo = argv.nightly
-            ? 'dynamicweb/swift'
-            : `dynamicweb/swift#${argv.tag ? argv.tag : await getVersions(true)}`;
-        const args = ['degit', repo];
+        const tag = argv.nightly ? null : argv.tag || await getVersions(true);
+        const repo = tag ? `dynamicweb/swift#${tag}` : 'dynamicweb/swift';
+        const outPath = path.resolve(argv.outPath);
+        const args = ['-y', 'degit', repo];
         if (argv.force) args.push('--force');
-        args.push(path.resolve(argv.outPath));
-        if (argv.verbose) console.info(`Executing: npx ${args.join(' ')}`)
+        args.push(outPath);
+        output.log(`Downloading ${repo} to ${outPath}`);
+        output.verboseLog(`Executing: npx ${args.join(' ')}`);
         const [command, commandArgs, options] = resolveNpx(args);
-        execFile(command, commandArgs, options, (error, stdout, stderr) => {
-            if (error) {
-                console.log(`error: ${error.message}`);
-                return;
-            }
-            if (stderr) {
-                console.log(stderr);
-                return;
-            }
-            console.log(stdout);
-        });
+        const plain = (text) => text?.replace(/\x1b\[[0-9;]*m/g, '').trim();
+        let result;
+        try {
+            result = await execFileAsync(command, commandArgs, options);
+        } catch (err) {
+            // degit reports failures on stderr and exits non-zero.
+            throw createCommandError(`Downloading ${repo} failed: ${plain(err.stderr) || err.message}`, 1, plain(err.stdout) || null);
+        }
+        // degit reports progress on stderr even when it succeeds.
+        const progress = [result.stdout, result.stderr].map(plain).filter(Boolean).join('\n');
+        if (progress) output.log(progress);
+        output.addData({ type: 'download', repo, tag, nightly: Boolean(argv.nightly), outPath });
     }
 }
 
@@ -82,15 +101,15 @@ function resolveNpx(args) {
 
 async function getVersions(latest) {
     let res = await fetch(`https://api.github.com/repos/dynamicweb/swift/releases${latest ? '/latest' : ''}`, {
-        method: 'GET',
-        agent: agent
+        method: 'GET'
     });
-    if (res.ok) {
-        let body = await res.json()
-        if (latest) {
-            return body.tag_name
-        } else {
-            return body.map(a => a.tag_name)
-        }
+    if (!res.ok) {
+        throw createCommandError('Unable to fetch Swift releases from GitHub.', res.status);
+    }
+    let body = await res.json()
+    if (latest) {
+        return body.tag_name
+    } else {
+        return body.map(a => a.tag_name)
     }
 }

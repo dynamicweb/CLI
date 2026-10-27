@@ -8,6 +8,7 @@ import { envCommand } from './commands/env.js';
 import { configCommand, setupConfig, getConfig } from './commands/config.js';
 import { installCommand } from './commands/install.js';
 import { filesCommand } from './commands/files.js';
+import { foldersCommand } from './commands/folders.js';
 import { swiftCommand } from './commands/swift.js';
 import { databaseCommand } from './commands/database.js';
 import { queryCommand } from './commands/query.js';
@@ -31,6 +32,7 @@ yargs(hideBin(process.argv))
     .command(installCommand())
     .command(configCommand())
     .command(filesCommand())
+    .command(foldersCommand())
     .command(swiftCommand())
     .command(databaseCommand())
     .command(queryCommand())
@@ -41,13 +43,37 @@ yargs(hideBin(process.argv))
         description: 'Run with verbose logging'
     })
     .option('protocol', {
-        description: 'Allows setting the protocol used, only used together with --host, defaulting to https'
+        description: 'Set the protocol used with --host (defaults to https)'
     })
     .option('host', {
-        description: 'Allows setting the host used, only allowed if an --apiKey is specified'
+        description: 'Allows setting the host used, only allowed if an --apiKey or OAuth client credentials are specified'
     })
     .option('apiKey', {
         description: 'Allows setting the apiKey for an environmentless execution of the CLI command'
+    })
+    .option('oauth', {
+        type: 'boolean',
+        description: 'Use OAuth client credentials authentication (shorthand for --auth oauth)'
+    })
+    .option('auth', {
+        choices: ['user', 'oauth'],
+        description: 'Overrides the authentication mode for the command'
+    })
+    .option('clientId', {
+        description: 'OAuth client ID used together with --auth oauth'
+    })
+    .option('clientSecret', {
+        description: 'OAuth client secret used together with --auth oauth. WARNING: passing this on the command line can expose the secret via shell history and process listings. Prefer using --clientSecretEnv to reference a secret stored in an environment variable instead.'
+    })
+    .option('clientIdEnv', {
+        description: 'Environment variable name that contains the OAuth client ID'
+    })
+    .option('clientSecretEnv', {
+        description: 'Environment variable name that contains the OAuth client secret'
+    })
+    .option('transfer', {
+        choices: ['auto', 'filetransfer', 'legacy'],
+        description: 'How files are moved by files, folders and install: the File Transfer API, the legacy endpoints, or auto-detect (default). Also settable with DW_TRANSFER'
     })
     .demandCommand()
     .parse()
@@ -56,15 +82,39 @@ function baseCommand() {
     return {
         command: '$0',
         describe: 'Shows the current env and user being used',
-        handler: () => {
-            if (Object.keys(getConfig()).length === 0) {
+        handler: (argv) => {
+            // Anything left over is a mistyped command (`dw fiels`); failing keeps a
+            // script from treating it as a successful run.
+            if (argv._.length > 0) {
+                console.error(`Unknown command: ${argv._.join(' ')}. Run "dw --help" for the list of commands.`);
+                process.exitCode = 1;
+                return;
+            }
+            const cfg = getConfig();
+            if (Object.keys(cfg).length === 0) {
                 console.log('To login to a solution use `dw login`')
                 return;
-            } 
-            console.log(`Environment: ${getConfig()?.current?.env}`)
-            console.log(`User: ${getConfig()?.env[getConfig()?.current?.env]?.current?.user}`)
-            console.log(`Protocol: ${getConfig()?.env[getConfig()?.current?.env]?.protocol}`)
-            console.log(`Host: ${getConfig()?.env[getConfig()?.current?.env]?.host}`)
+            }
+            const currentEnv = cfg?.env?.[cfg?.current?.env];
+            if (!currentEnv) {
+                console.log(`Environment '${cfg?.current?.env}' is not configured.`);
+                console.log('To login to a solution use `dw login`');
+                return;
+            }
+            const authType = currentEnv?.current?.authType;
+
+            console.log(`Environment: ${cfg?.current?.env}`);
+            if (authType === 'oauth_client_credentials') {
+                console.log('Authentication: OAuth client credentials');
+            } else if (currentEnv?.current?.user) {
+                console.log(`User: ${currentEnv.current.user}`);
+            }
+            if (currentEnv.protocol) {
+                console.log(`Protocol: ${currentEnv.protocol}`);
+            }
+            if (currentEnv.host) {
+                console.log(`Host: ${currentEnv.host}`);
+            }
         }
     }
 }

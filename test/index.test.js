@@ -6,7 +6,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-const cli = fileURLToPath(new URL('./index.js', import.meta.url));
+const cli = fileURLToPath(new URL('../bin/index.js', import.meta.url));
 const pkg = JSON.parse(fs.readFileSync(new URL('../package.json', import.meta.url), 'utf8'));
 
 function versionFrom(cwd) {
