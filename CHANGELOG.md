@@ -1,5 +1,19 @@
 # Changelog
 
+## 2.0.0
+
+First stable release of CLI v2. It contains everything from the 2.0.0 previews below, plus the following.
+
+### Breaking changes
+
+- **Host values are validated** -- `--host` and the host in `dw env` / `dw login` must be a bare host (optionally with protocol and port). A host with a path, query string or credentials is rejected, as is a protocol other than `http`/`https`.
+
+### Fixes
+
+- **A trailing slash or protocol in the host no longer breaks requests** -- `--host https://example.com/` built URLs like `https://https://example.com//Admin/...`. Hosts are now normalized (protocol, trailing slashes, case, default port) wherever they come from, including hosts already saved in `~/.dwc`; an explicit `--protocol` still wins. This also keeps the sync state for a host from being split across spellings of it.
+- **Users with limited folder permissions can use the File Transfer API** -- the transfer probe treated the API's `FORBIDDEN` on the files root as a rejected key. A refused path is now reported the same way by both transfers: status `403`, error code `PERMISSION_DENIED` and the path.
+- **Sync and deploy close race windows** -- a verified hash only becomes the baseline while the server still has that version; guarded deletes remove files one by one with `If-Match` before removing directories, so a file changed or added after planning is never deleted with its folder; and cleanup never overlaps uploads still in flight after a failure.
+
 ## 2.0.0-preview.4
 
 ### Breaking changes
