@@ -1,7 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import { createCommandError } from '../commands/env.js';
-import { FILE_CONCURRENCY, hashFile, joinRemote, mapPool, parentOf, toRemotePath } from './filetransfer.js';
+import { hashFile, joinRemote, mapPool, parentOf, toRemotePath } from './filetransfer.js';
 
 /**
  * Compares a local directory with a remote one and classifies every path:
@@ -55,7 +55,7 @@ export async function buildPlan(client, { localRoot, remoteRoot, recursive = tru
         items.push(item);
     }
 
-    await mapPool(compare, FILE_CONCURRENCY * 2, async (item) => {
+    await mapPool(compare, client.concurrency * 2, async (item) => {
         const [localSha, remoteSha] = await Promise.all([hashFile(item.localPath), client.remoteSha256(item.remotePath, item.remoteETag)]);
         item.sha256 = localSha;
         item.action = localSha === remoteSha ? 'unchanged' : 'changed';
@@ -165,7 +165,7 @@ export async function applyPush(client, plan, { targetRoot = plan.remotePath, de
             await client.createDirectoryEntry(joinRemote(targetRoot, item.path));
         }
 
-        await mapPool(uploads, FILE_CONCURRENCY, async (item) => {
+        await mapPool(uploads, client.concurrency, async (item) => {
             const target = joinRemote(targetRoot, item.path);
             const ifMatch = guard && item.action === 'changed' && targetRoot === plan.remotePath ? item.remoteETag : undefined;
             try {

@@ -169,12 +169,15 @@ Most API-driven commands support these global options:
 - `--clientIdEnv`: read the OAuth client ID from an environment variable
 - `--clientSecretEnv`: read the OAuth client secret from an environment variable
 - `--transfer`: how `files`, `folders` and `install` move files — `auto` (default), `filetransfer` or `legacy`
+- `--concurrency`: files the File Transfer API moves at once, 1–16 (default 4; also `DW_TRANSFER_CONCURRENCY`)
 
 ## File Transfer
 
 On solutions that include the File Transfer API (`/Admin/Api/FileTransfer`), `files`, `folders` and `install` use it automatically: uploads go in checksum-verified chunks and are swapped in atomically, exports are streamed file by file, and transient failures are retried safely. Older solutions keep using the original endpoints. Commands, options and JSON output are the same either way; `meta.transfer` in the JSON output says which was used.
 
 Force one or the other with `--transfer filetransfer|legacy`, the `DW_TRANSFER` environment variable, or a saved setting (`dw config --env.dev.transfer legacy`). A forced `filetransfer` fails instead of falling back when the solution does not provide the API. `--raw` exports (keep the zip) only exist in the legacy transfer.
+
+If the server or a proxy rate-limits the CLI (HTTP 429, or a bare 403 from IIS Dynamic IP Restrictions after earlier requests succeeded), it pauses, continues with one paced request at a time, and only fails with `RATE_LIMITED` if the limit persists. See [Rate limits](cliv2-documentation.md#rate-limits).
 
 With the File Transfer API, `dw files` can also sync and deploy:
 
