@@ -7,10 +7,10 @@ import { downloadWithProgress } from '../downloader.js';
 import { resolvesWithinRoot } from '../extractor.js';
 import { createThrottledStatusUpdater, formatBytes } from '../utils.js';
 import { createTransferState } from './state.js';
+import { createThrottle, parseJsonSafe, sleep } from './throttle.js';
 
 const ROUTE = '/Admin/Api/FileTransfer';
 const MAX_ATTEMPTS = 4;
-export const FILE_CONCURRENCY = 4;
 const MANIFEST_PAGE_SIZE = 1000;
 const DOWNLOAD_ATTEMPTS = 3;
 
@@ -27,15 +27,21 @@ const EXCLUDED_PREFIXES = ['system/log', 'cache.net'];
  * transfer is used is invisible to scripts apart from `meta.transfer`. What the client
  * learns about remote files (eTag, SHA-256) is kept in the transfer state in ~/.dwc for
  * diff, sync and deploy.
+ *
+ * All requests go through one throttle (createThrottle), which also sets how many files
+ * move at once: when the server or a proxy in front of it rate-limits the client, every
+ * request pauses and the client continues one request at a time.
  */
-export function createFileTransferClient(env, user) {
+export function createFileTransferClient(env, user, { throttle = createThrottle() } = {}) {
     const base = `${env.protocol}://${env.host}${ROUTE}`;
     const state = createTransferState(env);
+    const { concurrency } = throttle;
 
     /**
      * Sends a request, retrying network failures and errors the server marks as
      * retryable. Mutations carry one Idempotency-Key across all attempts, so a retry
-     * can never apply an operation twice.
+     * can never apply an operation twice. Throttled responses are retried by the
+     * throttle and do not count against these attempts.
      */
     async function request(method, route, { query, json, body, headers = {}, idempotent = false, raw = false, okStatuses = [] } = {}) {
         const url = `${base}/${route}${query ? `?${new URLSearchParams(query)}` : ''}`;
@@ -49,9 +55,9 @@ export function createFileTransferClient(env, user) {
         }
 
         for (let attempt = 1; ; attempt++) {
-            let res;
+            let sent;
             try {
-                res = await fetch(url, { method, headers: requestHeaders, body, agent: getAgent(env.protocol) });
+                sent = await throttle.send(() => fetch(url, { method, headers: requestHeaders, body, agent: getAgent(env.protocol) }));
             } catch (err) {
                 if (attempt < MAX_ATTEMPTS && isTransientNetworkError(err)) {
                     await delay(attempt);
@@ -60,11 +66,14 @@ export function createFileTransferClient(env, user) {
                 throw err;
             }
 
-            if (res.ok || okStatuses.includes(res.status)) {
+            const { res, body: error } = sent;
+            if (res.ok) {
                 return raw ? res : await parseJsonSafe(res);
             }
+            if (okStatuses.includes(res.status)) {
+                return raw ? res : error;
+            }
 
-            const error = await parseJsonSafe(res);
             if (attempt < MAX_ATTEMPTS && (error?.retryable === true || res.status === 502 || res.status === 503 || res.status === 504)) {
                 await delay(attempt);
                 continue;
@@ -314,7 +323,7 @@ export function createFileTransferClient(env, user) {
         let chunks = 0;
 
         try {
-            await mapPool(localFilePaths, FILE_CONCURRENCY, async (localFile) => {
+            await mapPool(localFilePaths, concurrency, async (localFile) => {
                 const filePath = path.resolve(localFile);
                 const name = path.basename(filePath);
                 const size = (await fs.promises.stat(filePath)).size;
@@ -465,7 +474,7 @@ export function createFileTransferClient(env, user) {
         let skipped = 0;
         let bytes = 0;
         try {
-            await mapPool(files, FILE_CONCURRENCY, async (entry) => {
+            await mapPool(files, concurrency, async (entry) => {
                 const localPath = localPathFor(destinationRoot, entry.path);
                 const remoteFile = joinRemote(root, entry.path);
                 await assertLocalWithin(realRoot, path.dirname(localPath));
@@ -606,6 +615,8 @@ export function createFileTransferClient(env, user) {
     return {
         name: 'filetransfer',
         state,
+        /** Files moved at once (`--concurrency`). */
+        concurrency,
         // entry level
         exists,
         metadata,
@@ -780,14 +791,5 @@ function isTransientNetworkError(err) {
 }
 
 function delay(attempt) {
-    return new Promise(resolve => setTimeout(resolve, 250 * 2 ** (attempt - 1)));
-}
-
-async function parseJsonSafe(res) {
-    try {
-        const text = await res.text();
-        return text ? JSON.parse(text) : null;
-    } catch {
-        return null;
-    }
+    return sleep(250 * 2 ** (attempt - 1));
 }
