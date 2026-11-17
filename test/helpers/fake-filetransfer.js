@@ -11,7 +11,8 @@ export const sha256 = (data) => crypto.createHash('sha256').update(data).digest(
  *
  * `faults` injects failures by "METHOD route" key (session ids replaced by `:id`), each
  * entry a list of statuses consumed one per request; status 0 drops the connection after
- * sending part of a download.
+ * sending part of a download. An entry may also be `{ status, text, headers }` to answer
+ * like something in front of the API would (e.g. an IIS 403 with an HTML body).
  */
 export async function startFakeFileTransfer(t, { files = {}, directories = [], faults = {}, chunkSize = 4, manifestPageSize = 2 } = {}) {
     const store = new Map(Object.entries(files).map(([p, data]) => [p, Buffer.from(data)]));
@@ -53,6 +54,10 @@ export async function startFakeFileTransfer(t, { files = {}, directories = [], f
         const fail = (status, code, message, extra = {}) => send(status, { code, message, retryable: false, ...extra });
 
         const fault = faults[key]?.shift();
+        if (fault && typeof fault === 'object') {
+            res.writeHead(fault.status, { 'Content-Type': 'text/html', ...fault.headers });
+            return res.end(fault.text ?? '');
+        }
         if (fault) return send(fault, { code: 'IO_ERROR', message: 'transient', retryable: true });
 
         const json = body.length && req.headers['content-type']?.includes('json') ? JSON.parse(body) : {};

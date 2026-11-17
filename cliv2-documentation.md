@@ -328,6 +328,7 @@ These options are available on all API-driven commands:
 | `--clientSecretEnv <var>` | Environment variable containing the OAuth client secret |
 | `--output json` | Return structured JSON instead of human-readable output |
 | `--transfer <mode>` | How `files`, `folders` and `install` move files: `auto` (default), `filetransfer` or `legacy`. See [File transfer](#file-transfer) |
+| `--concurrency <n>` | Files the File Transfer API moves at once, 1–16 (default 4; also `DW_TRANSFER_CONCURRENCY`). See [Rate limits](#rate-limits) |
 
 ### env
 
@@ -964,7 +965,7 @@ Choose explicitly with, in order of precedence:
 2. The `DW_TRANSFER` environment variable
 3. A `transfer` setting on the saved environment: `dw config --env.production.transfer legacy`
 
-An explicit `filetransfer` never falls back: if the solution does not provide the API the command fails, so a pipeline or test always runs what it asked for. An authentication failure during the check is reported as such, never treated as "not supported".
+An explicit `filetransfer` never falls back: if the solution does not provide the API the command fails, so a pipeline or test always runs what it asked for. An authentication failure during the check is reported as such, never treated as "not supported". A check that is rate-limited is retried (see [Rate limits](#rate-limits)), and is never reported as an authentication failure.
 
 ```sh
 # Force each implementation, e.g. to compare them in a test
@@ -980,6 +981,23 @@ Differences you may notice with `filetransfer`:
 - Listing a directory that does not exist is an error (the legacy endpoint returns an empty listing).
 - Copying onto an existing item is an error (or replaces a file with `--overwrite`); the legacy endpoint creates "Copy of ...". Copying or moving into a directory that does not exist creates it; the legacy endpoints fail.
 - Interrupted downloads resume where they stopped, on the next attempt or the next run. The partial file is tied to the remote file's version, so a file that changed in between is downloaded whole rather than spliced.
+
+### Rate limits
+
+The File Transfer API moves 4 files at once (`--concurrency` or `DW_TRANSFER_CONCURRENCY`, 1–16), and every file takes at least three requests: create the upload session, send the data, finalize. Uploading many small files can therefore cross a rate limit in front of the solution that the legacy transfer (one request per folder) never reaches, such as IIS Dynamic IP Restrictions or the DynamicWeb rate limiter.
+
+The CLI treats an HTTP 429 as "slow down", and also an HTTP 403 without a JSON body once the server has accepted an earlier request in the same command. Dynamicweb's own permission errors are always JSON, so they are not affected. A bare 403 on the first request is more likely rejected credentials, a static IP block or a firewall, so it fails at once with an error that names these causes. When the CLI is throttled, it:
+
+1. Pauses every request, not just the one that was refused, for the server's `Retry-After` or about 6 seconds (longer on each retry).
+2. Continues with one request at a time, at most 5 per second, halving that rate if it is throttled again.
+3. Logs a line saying so (not in `--output json`, whose envelope is the same as with the legacy transfer).
+
+A request that is still refused after 6 tries fails with `details.code: "RATE_LIMITED"`, and the rest of the command's requests then fail at once instead of waiting out further pauses. In that case, lower `--concurrency`, use `--transfer legacy`, or have the host raise the limit or exempt `/Admin/`.
+
+```sh
+# A pipeline behind a strict proxy: start slow instead of waiting to be throttled
+dw files ./dist /Templates/Designs/MyDesign -iro --concurrency 1
+```
 
 ## Sync, deploy and inspect
 

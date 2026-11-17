@@ -75,6 +75,10 @@ yargs(hideBin(process.argv))
         choices: ['auto', 'filetransfer', 'legacy'],
         description: 'How files are moved by files, folders and install: the File Transfer API, the legacy endpoints, or auto-detect (default). Also settable with DW_TRANSFER'
     })
+    .option('concurrency', {
+        type: 'number',
+        description: 'Files the File Transfer API moves at once (1-16, default 4). Lower it for servers that rate-limit requests; the CLI also drops to 1 by itself when throttled. Also settable with DW_TRANSFER_CONCURRENCY'
+    })
     .demandCommand()
     .parse()
 

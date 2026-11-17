@@ -31,6 +31,11 @@ and the transfer state in [bin/transfer/state.js](bin/transfer/state.js), which 
 importing CLI modules (see [test/sync.test.js](test/sync.test.js)); [test/helpers/fake-filetransfer.js](test/helpers/fake-filetransfer.js)
 is an in-memory File Transfer API for tests.
 
+Every File Transfer request, the `auto` probe included, is sent through `throttle.send()`
+([bin/transfer/throttle.js](bin/transfer/throttle.js)), one throttle per client. A 429, or a 403 without a JSON
+body once an earlier request got through (IIS Dynamic IP Restrictions), pauses all requests and from then
+on allows one paced request at a time. It adds nothing to the JSON envelope (transfer parity). Send new requests through `request()` rather than calling `fetch` directly.
+
 ### Output envelope
 
 Every command handler builds its output object with `createOutput()` from [bin/output.js](bin/output.js)
@@ -52,7 +57,8 @@ are skipped.
 
 All commands inherit: `--verbose/-v`, `--host`, `--protocol`, `--apiKey`, `--oauth`,
 `--auth user|oauth`, `--clientId`, `--clientSecret`, `--clientIdEnv`, `--clientSecretEnv`,
-`--transfer auto|filetransfer|legacy` (same as `DW_TRANSFER`; default `auto`).
+`--transfer auto|filetransfer|legacy` (same as `DW_TRANSFER`; default `auto`), `--concurrency <n>` (same as
+`DW_TRANSFER_CONCURRENCY`; default 4).
 
 ## Gotchas
 

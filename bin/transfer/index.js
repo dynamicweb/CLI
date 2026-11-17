@@ -1,6 +1,7 @@
 import fetch from 'node-fetch';
 import { getAgent, createCommandError } from '../commands/env.js';
 import { createFileTransferClient } from './filetransfer.js';
+import { createThrottle, parseJsonSafe, resolveConcurrency } from './throttle.js';
 
 export const TRANSFER_MODES = ['auto', 'filetransfer', 'legacy'];
 export const TRANSFER_ENV_VAR = 'DW_TRANSFER';
@@ -23,9 +24,10 @@ export const TRANSFER_ENV_VAR = 'DW_TRANSFER';
  *   implementation (e.g. `--raw` zip exports).
  * @returns {Promise<{ name: 'filetransfer'|'legacy', source: string, client: Object|null }>}
  */
-export async function resolveTransfer(argv, env, user, output, { legacyOnly = false, probe = probeFileTransfer } = {}) {
+export async function resolveTransfer(argv, env, user, output, { legacyOnly = false, probe = probeFileTransfer, throttleOptions = {} } = {}) {
     const { mode, source } = resolveTransferMode(argv, env);
     let name;
+    let throttle = null;
 
     if (mode === 'legacy') {
         name = 'legacy';
@@ -35,7 +37,15 @@ export async function resolveTransfer(argv, env, user, output, { legacyOnly = fa
         }
         name = 'legacy';
     } else {
-        const supported = await probe(env, user);
+        throttle = createThrottle({
+            concurrency: resolveConcurrency(argv),
+            ...throttleOptions,
+            onThrottle: ({ waitMs, requestsPerSecond }) => {
+                const pause = waitMs >= 1000 ? `pausing ${Math.round(waitMs / 1000)}s, then ` : '';
+                output.log(`The server is rate-limiting requests; ${pause}continuing one request at a time (at most ${requestsPerSecond}/s).`);
+            }
+        });
+        const supported = await probe(env, user, throttle);
         if (!supported && mode === 'filetransfer') {
             throw createCommandError(`This solution does not provide the File Transfer API (/Admin/Api/FileTransfer). Use --transfer legacy or auto.`, 404);
         }
@@ -49,7 +59,7 @@ export async function resolveTransfer(argv, env, user, output, { legacyOnly = fa
         name,
         mode,
         source,
-        client: name === 'filetransfer' ? createFileTransferClient(env, user) : null
+        client: name === 'filetransfer' ? createFileTransferClient(env, user, { throttle }) : null
     };
 }
 
@@ -93,14 +103,14 @@ export function resolveTransferMode(argv, env = {}, environment = process.env) {
  * A 404 means it does not; an authentication failure is reported, not treated as
  * "unsupported", so bad credentials never quietly switch implementations.
  */
-export async function probeFileTransfer(env, user) {
-    const res = await fetch(`${env.protocol}://${env.host}/Admin/Api/FileTransfer/entries/exists?path=`, {
+export async function probeFileTransfer(env, user, throttle) {
+    // Through the client's throttle, so a rate-limited check (HTTP 429) is retried.
+    const { res, body } = await throttle.send(() => fetch(`${env.protocol}://${env.host}/Admin/Api/FileTransfer/entries/exists?path=`, {
         method: 'GET',
         headers: { 'Authorization': `Bearer ${user.apiKey}` },
         agent: getAgent(env.protocol)
-    });
-
-    return classifyProbeResponse(res.status, await parseJsonSafe(res));
+    }));
+    return classifyProbeResponse(res.status, res.ok ? await parseJsonSafe(res) : body);
 }
 
 export function classifyProbeResponse(status, body) {
@@ -116,16 +126,15 @@ export function classifyProbeResponse(status, body) {
     if (status === 403 && body?.code === 'FORBIDDEN') {
         return true;
     }
+    // A 403 that is not JSON did not come from Dynamicweb: something in front of the
+    // solution refused the client, which may be the credentials or may be a firewall or
+    // rate limit (the first request of a command cannot tell them apart).
+    if (status === 403 && body === null) {
+        throw createCommandError('The solution refused the request (HTTP 403) without a Dynamicweb error: the API key or token may be rejected, or a firewall or rate limit in front of the solution (such as IIS Dynamic IP Restrictions) blocked this client.', status, body);
+    }
     if (status === 401 || status === 403) {
         throw createCommandError(`Authentication failed: the solution rejected the API key or token (HTTP ${status}).`, status, body);
     }
     throw createCommandError(`Unexpected response from the File Transfer API check (HTTP ${status}).`, status, body);
 }
 
-async function parseJsonSafe(res) {
-    try {
-        return await res.json();
-    } catch {
-        return null;
-    }
-}
